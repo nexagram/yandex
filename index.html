@@ -360,7 +360,7 @@
         
         .mp-head { display: flex; justify-content: space-between; padding: 16px; font-size: 24px; position: sticky; top: 0; z-index: 10; background: rgba(var(--bg), 0.8); backdrop-filter: blur(15px); }
         
-        /* ИСПРАВЛЕНИЕ: КВАДРАТНАЯ АВАТАРКА В ПРОФИЛЕ */
+        /* КВАДРАТНАЯ АВАТАРКА В ПРОФИЛЕ */
         .mp-av-wrap { margin: 20px auto; width: 140px; height: 140px; border-radius: 24px; overflow: hidden; background: var(--in); display: flex; align-items: center; justify-content: center; font-size: 50px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); transition: transform 0.2s; }
         .mp-av-wrap:active { transform: scale(0.95); }
         
@@ -422,8 +422,7 @@
 </head>
 <body>
 
-<!-- Умная плашка для разблокировки звука звонка -->
-<div id="audio-unlock-toast" onclick="forceUnlockAudio()">🔊 Нажмите, чтобы включить звук звонка</div>
+<div id="audio-unlock-toast" onclick="forceUnlockAudio()">🔊 Нажмите, чтобы включить звук</div>
 
 <div class="auth-screen" id="authScreen">
     <div class="auth-card">
@@ -492,7 +491,6 @@
 </script>
 
 <audio id="incomingRingtone" preload="auto" playsinline loop></audio>
-<!-- Исправленные гудки: более мягкий и тихий звук, чтобы не било по ушам -->
 <audio id="outgoingRingtone" preload="auto" playsinline loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio>
 <audio id="notificationSound" preload="auto" playsinline></audio>
 
@@ -678,7 +676,7 @@
                 <option value="https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3">Современный звонок (Мягкий)</option>
                 <option value="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3">Классический телефон</option>
                 <option value="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg">Будильник (Android)</option>
-                <option value="custom">📁 Свой файл (MP3, OGG)...</option>
+                <option value="custom">📁 Выбрать свой файл...</option>
             </select>
         </div>
         <div class="input-group">
@@ -1141,7 +1139,7 @@
         }).join('');
     }
 
-    // ИСПРАВЛЕНИЕ "КАРТОШКИ": Откладываем запрос микрофона до момента принятия звонка
+    // === ИСПРАВЛЕНИЕ: МИКРОФОН ЗАПРАШИВАЕТСЯ СТРОГО ПО КЛИКУ ===
     async function initiateCall(isVideo) {
         if (!activeChat || activeChat.type !== 'direct') return;
         const targetUserId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1; const targetUser = db.users.find(u => u.id === targetUserId);
@@ -1155,67 +1153,58 @@
         document.getElementById('minimizedCallBar').style.display = 'none';
         document.getElementById('callCenterArea').style.display = 'flex'; document.getElementById('callTopCenter').style.display = 'none';
         renderCallControls(); 
-        
-        safePlayAudio(outRing, true);
 
-        // Пишем звонок в базу БЕЗ открытия микрофона, чтобы не портить качество ожидания
-        await rtdb.ref(`/dg_calls/${currentCallId}`).set({ caller: me.id, callee: targetUserId, status: 'ringing', isVideo: isVideo });
-        await rtdb.ref(`/dg_user_calls/${targetUserId}`).set(currentCallId);
-        
-        let isConnecting = false;
-
-        callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
-        callRef.on('value', async snap => {
-            const data = snap.val(); if (!data) return cleanupCall();
+        try {
+            // Запрашиваем микрофон мгновенно по клику. Аппаратное подавление эха и шумов ВКЛЮЧЕНО!
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             
-            // Если собеседник принял звонок, ТЕПЕРЬ запрашиваем микрофон
-            if (data.status === 'accepting' && !isConnecting) {
-                isConnecting = true;
-                outRing.pause(); outRing.currentTime = 0; setCallStatusText('Соединение...');
-                try {
-                    // Аппаратное эхоподавление от писка, но БЕЗ агрессивного сжатия голоса
-                    const audioConstraints = { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: currentCallIsVideo ? { facingMode: currentFacingMode } : false });
-                    if (currentCallIsVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
-                    
-                    peerConnection = new RTCPeerConnection(rtcConfig); 
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                    
-                    peerConnection.ontrack = event => { 
-                        const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
-                        if (event.track.kind === 'video') {
-                            if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
-                            rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
-                        } else {
-                            if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
-                            rAud.play().catch(e=>{});
-                        }
-                    };
-                    peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).push(event.candidate.toJSON()); };
-                    
-                    const offer = await peerConnection.createOffer(); await peerConnection.setLocalDescription(offer);
-                    await rtdb.ref(`/dg_calls/${currentCallId}`).update({ offer: { type: offer.type, sdp: offer.sdp }, status: 'offering' });
+            peerConnection = new RTCPeerConnection(rtcConfig); 
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = event => { 
+                const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
+                if (event.track.kind === 'video') {
+                    if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
+                    rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
+                } else {
+                    if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
+                    rAud.play().catch(e=>{});
+                }
+            };
+            peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).push(event.candidate.toJSON()); };
+            
+            const offer = await peerConnection.createOffer(); await peerConnection.setLocalDescription(offer);
+            
+            safePlayAudio(outRing, true);
 
-                } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
-            }
-            else if (data.answer && peerConnection && peerConnection.signalingState === 'have-local-offer') {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: 'connected' });
+            await rtdb.ref(`/dg_calls/${currentCallId}`).set({ caller: me.id, callee: targetUserId, offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing', isVideo: isVideo });
+            await rtdb.ref(`/dg_user_calls/${targetUserId}`).set(currentCallId);
+            
+            let isAnswerProcessed = false;
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
+            callRef.on('value', async snap => {
+                const data = snap.val(); if (!data) return cleanupCall();
                 
-                // Безопасно подписываемся на ICE только после установки RemoteDescription
-                rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).on('child_added', snap => { 
-                    if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e)); 
-                });
-            }
-            else if (data.status === 'connected' && !callInterval) {
-                outRing.pause(); outRing.currentTime = 0;
-                setCallStatusText('Разговор (0:00)'); startCallTimer();
-            }
-            else if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') {
-                cleanupCall(); 
-                if (data.caller === me.id) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: data.status, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
-            }
-        });
+                if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') {
+                    cleanupCall(); 
+                    if (data.caller === me.id) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: data.status, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
+                    return;
+                }
+
+                if (data.answer && !isAnswerProcessed) {
+                    isAnswerProcessed = true;
+                    outRing.pause(); outRing.currentTime = 0;
+                    setCallStatusText('Разговор (0:00)');
+                    startCallTimer();
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                }
+            });
+
+            rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).on('child_added', snap => { if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e)); });
+            
+        } catch (e) { showToast('Ошибка микрофона: ' + e.message); cleanupCall(); }
     }
 
     async function acceptCall(isVideo) {
@@ -1224,55 +1213,50 @@
         setCallStatusText('Соединение...');
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true; renderCallControls();
         
-        let isConnecting = false;
-        await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: 'accepting' });
-        await rtdb.ref(`/dg_user_calls/${me.id}`).remove();
-        
-        callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
-        callRef.on('value', async snap => {
-            const data = snap.val(); if (!data || data.status === 'ended' || data.status === 'declined' || data.status === 'missed') return cleanupCall();
+        try {
+            // Запрашиваем микрофон мгновенно по клику.
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             
-            if (data.offer && !isConnecting) {
-                isConnecting = true;
-                try {
-                    // Аппаратное эхоподавление от писка, но БЕЗ сжатия голоса
-                    const audioConstraints = { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
-                    if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
-                    
-                    peerConnection = new RTCPeerConnection(rtcConfig); 
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                    
-                    peerConnection.ontrack = event => { 
-                        const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
-                        if (event.track.kind === 'video') {
-                            if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
-                            rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
-                        } else {
-                            if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
-                            rAud.play().catch(e=>{});
-                        }
-                    };
-                    peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).push(event.candidate.toJSON()); };
-                    
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                    
-                    // Безопасно подписываемся на ICE только после установки RemoteDescription
-                    rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).on('child_added', snap => {
-                        if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e));
-                    });
+            peerConnection = new RTCPeerConnection(rtcConfig); 
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = event => { 
+                const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
+                if (event.track.kind === 'video') {
+                    if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
+                    rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
+                } else {
+                    if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
+                    rAud.play().catch(e=>{});
+                }
+            };
+            peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).push(event.candidate.toJSON()); };
+            
+            const callSnap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value'); 
+            const callData = callSnap.val();
+            
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            const answer = await peerConnection.createAnswer(); 
+            await peerConnection.setLocalDescription(answer);
+            
+            await rtdb.ref(`/dg_calls/${currentCallId}`).update({ answer: { type: answer.type, sdp: answer.sdp }, status: 'connected' });
+            await rtdb.ref(`/dg_user_calls/${me.id}`).remove();
+            
+            setCallStatusText('Разговор (0:00)'); startCallTimer();
 
-                    const answer = await peerConnection.createAnswer(); 
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    await rtdb.ref(`/dg_calls/${currentCallId}`).update({ answer: { type: answer.type, sdp: answer.sdp } });
-                    
-                } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
-            }
-            else if (data.status === 'connected' && !callInterval) {
-                setCallStatusText('Разговор (0:00)'); startCallTimer();
-            }
-        });
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
+            callRef.on('value', snap => {
+                const data = snap.val(); 
+                if (!data || data.status === 'ended' || data.status === 'declined' || data.status === 'missed') return cleanupCall();
+            });
+            
+            rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).on('child_added', snap => {
+                if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e));
+            });
+            
+        } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
     }
 
     async function endCall() {
@@ -1913,6 +1897,7 @@
 
     async function resetFirebasePassword() { const email = document.getElementById('forgotLogin').value.trim().toLowerCase(); if (!email || !email.includes('@')) return showToast('Введите корректный Email в первое поле'); try { await firebase.auth().sendPasswordResetEmail(email); alert('Письмо для сброса пароля отправлено на ' + email + '.\nОбязательно проверьте папку "Спам" или "Рассылки"!'); closeForgotModal(); } catch (error) { showToast('Ошибка: ' + error.message); } }
     
+    // ИСПРАВЛЕНИЕ: Симметричное добавление без лишних кликов
     function acceptReq(id) { 
         const myIdx = db.users.findIndex(u => u.id === me.id);
         const fIdx = db.users.findIndex(u => u.id === id);
@@ -2039,4 +2024,4 @@
     }
 </script>
 </body>
-        </html>
+                                                                                                                                    </html>
