@@ -422,7 +422,7 @@
 </head>
 <body>
 
-<div id="audio-unlock-toast" onclick="forceUnlockAudio()">🔊 Нажмите, чтобы включить звук</div>
+<div id="audio-unlock-toast" onclick="forceUnlockAudio()">🔊 Нажмите, чтобы включить звук звонка</div>
 
 <div class="auth-screen" id="authScreen">
     <div class="auth-card">
@@ -490,7 +490,7 @@
     document.head.insertAdjacentHTML('beforeend', `<link rel="manifest" href="data:application/manifest+json;charset=utf-8,${encodeURIComponent(JSON.stringify(pwaManifest()))}">`);
 </script>
 
-<audio id="incomingRingtone" preload="auto" playsinline loop></audio>
+<audio id="incomingRingtone" preload="auto" playsinline loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio>
 <audio id="outgoingRingtone" preload="auto" playsinline loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio>
 <audio id="notificationSound" preload="auto" playsinline></audio>
 
@@ -669,17 +669,8 @@
 <!-- МОДАЛКА НАСТРОЕК ЗВУКА -->
 <div id="soundModal" class="modal">
     <div class="modal-content">
-        <h3>Звуки и рингтоны</h3>
+        <h3>Звуки и уведомления</h3>
         <div class="input-group" style="margin-top: 16px;">
-            <label>Рингтон входящего вызова</label>
-            <select id="ringtoneSelect" class="auth-input" onchange="previewRingtone()">
-                <option value="https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3">Современный звонок (Мягкий)</option>
-                <option value="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3">Классический телефон</option>
-                <option value="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg">Будильник (Android)</option>
-                <option value="custom">📁 Выбрать свой файл...</option>
-            </select>
-        </div>
-        <div class="input-group">
             <label>Звук нового сообщения</label>
             <select id="notifSelect" class="auth-input" onchange="previewNotif()">
                 <option value="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3">Легкий Pop</option>
@@ -867,11 +858,9 @@
     
     let localSettings = JSON.parse(localStorage.getItem('Nexagram_Settings')) || { theme: 'green', lightMode: false };
     
-    let currentRingtone = localSettings.ringtone || "https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3";
     let currentNotif = localSettings.notifSound || "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
     function applySounds() {
-        if (inRing.src !== currentRingtone) inRing.src = currentRingtone;
         if (currentNotif === 'none') { notifSound.removeAttribute('src'); } 
         else { if (notifSound.src !== currentNotif) notifSound.src = currentNotif; }
     }
@@ -891,8 +880,6 @@
     let peerConnection = null; let localStream = null; let currentCallId = null; let callRef = null;
     let isCallMicMuted = false; let isCallCamOff = false; let isSpeakerOn = true; let currentCallIsVideo = false; let currentFacingMode = 'user';
 
-    // В WebRTC оставляем только удаление эха, чтобы убрать писк, 
-    // но отключаем агрессивное сжатие, чтобы голос не был "из картошки"
     const rtcConfig = { 
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -1139,7 +1126,6 @@
         }).join('');
     }
 
-    // === ИСПРАВЛЕНИЕ: МИКРОФОН ЗАПРАШИВАЕТСЯ СТРОГО ПО КЛИКУ ===
     async function initiateCall(isVideo) {
         if (!activeChat || activeChat.type !== 'direct') return;
         const targetUserId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1; const targetUser = db.users.find(u => u.id === targetUserId);
@@ -1155,7 +1141,7 @@
         renderCallControls(); 
 
         try {
-            // Запрашиваем микрофон мгновенно по клику. Аппаратное подавление эха и шумов ВКЛЮЧЕНО!
+            // Аппаратное эхоподавление
             const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
             localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
             if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
@@ -1214,7 +1200,6 @@
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true; renderCallControls();
         
         try {
-            // Запрашиваем микрофон мгновенно по клику.
             const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
             localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
             if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
@@ -1948,52 +1933,15 @@
 
     // === ЛОГИКА ОКНА НАСТРОЕК ЗВУКА ===
     function openSoundSettings() {
-        document.getElementById('ringtoneSelect').value = currentRingtone;
         document.getElementById('notifSelect').value = currentNotif;
         document.getElementById('soundModal').classList.add('active');
     }
 
     function closeSoundModal() {
-        const inRingEl = document.getElementById('incomingRingtone');
         const notifEl = document.getElementById('notificationSound');
-        if (inRingEl) { inRingEl.pause(); inRingEl.currentTime = 0; }
         if (notifEl) { notifEl.pause(); notifEl.currentTime = 0; }
         applySounds(); 
         document.getElementById('soundModal').classList.remove('active');
-    }
-
-    function previewRingtone() {
-        let val = document.getElementById('ringtoneSelect').value;
-        if (val === 'custom') {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'audio/*';
-            input.onchange = async e => {
-                if(e.target.files[0]) {
-                    const url = await uploadToCloud(e.target.files[0]);
-                    if (url) {
-                        let opt = document.createElement('option');
-                        opt.value = url;
-                        opt.text = "Свой рингтон";
-                        document.getElementById('ringtoneSelect').add(opt);
-                        document.getElementById('ringtoneSelect').value = url;
-                        
-                        let audio = document.getElementById('incomingRingtone');
-                        audio.src = url;
-                        audio.play().catch(err => console.warn('Preview blocked:', err));
-                    } else {
-                        document.getElementById('ringtoneSelect').value = currentRingtone;
-                    }
-                } else {
-                    document.getElementById('ringtoneSelect').value = currentRingtone;
-                }
-            };
-            input.click();
-            return;
-        }
-        let audio = document.getElementById('incomingRingtone');
-        audio.src = val;
-        audio.play().catch(e => console.warn('Preview blocked:', e));
     }
 
     function previewNotif() {
@@ -2008,14 +1956,10 @@
     }
 
     function saveSoundSettings() {
-        const inRingEl = document.getElementById('incomingRingtone');
         const notifEl = document.getElementById('notificationSound');
-        if (inRingEl) { inRingEl.pause(); inRingEl.currentTime = 0; }
         if (notifEl) { notifEl.pause(); notifEl.currentTime = 0; }
         
-        currentRingtone = document.getElementById('ringtoneSelect').value;
         currentNotif = document.getElementById('notifSelect').value;
-        localSettings.ringtone = currentRingtone;
         localSettings.notifSound = currentNotif;
         localStorage.setItem('Nexagram_Settings', JSON.stringify(localSettings));
         applySounds();
@@ -2024,4 +1968,4 @@
     }
 </script>
 </body>
-                                                                                                                                    </html>
+                    </html>
