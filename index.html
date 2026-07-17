@@ -385,17 +385,21 @@
             #app, .auth-screen { 
                 width: 100%; max-width: 1100px; height: 90vh !important; max-height: 850px; 
                 border-radius: 20px; box-shadow: 0 25px 80px rgba(0,0,0,0.6); 
-                transform: translateZ(0); 
+                transform: translateZ(0); /* Магия: привязывает fixed элементы к этому блоку */
                 border: 1px solid #2a2a2a; margin: auto; position: relative; overflow: hidden;
             }
+            
+            /* Двухколоночный интерфейс */
             .content { width: 350px; border-right: 1px solid var(--brd); height: 100%; padding-bottom: 64px; }
             .nav { width: 350px; position: absolute; left: 0; bottom: 0; border-top: 1px solid var(--brd); border-radius: 0 0 0 20px; }
             
+            /* Чат всегда справа */
             #chat-window { 
                 position: absolute; top: 0; right: 0; bottom: 0; left: 350px; 
                 transform: none !important; visibility: visible !important; display: flex !important;
                 border-radius: 0 20px 20px 0; background: var(--bg); border-left: 1px solid var(--brd);
             }
+            /* Заглушка, когда чат не выбран */
             #chat-window::before { 
                 content: 'Выберите чат для общения'; position: absolute; inset: 0; 
                 display: flex; align-items: center; justify-content: center; 
@@ -406,11 +410,13 @@
             #chat-window.active::before { opacity: 0; pointer-events: none; }
             .back-btn { display: none !important; }
             
+            /* Профиль тоже открывается справа поверх чата */
             #profile-view-screen { 
                 position: absolute; top: 0; right: 0; bottom: 0; left: 350px; 
                 border-left: 1px solid var(--brd); border-radius: 0 20px 20px 0;
             }
             
+            /* Окна и модалки на всю площадь приложения */
             #callOverlay, .modal, #storyViewer { position: absolute; border-radius: 20px; }
             .chat-input-area { padding-bottom: 12px !important; }
         }
@@ -487,9 +493,9 @@
     document.head.insertAdjacentHTML('beforeend', `<link rel="manifest" href="data:application/manifest+json;charset=utf-8,${encodeURIComponent(JSON.stringify(pwaManifest()))}">`);
 </script>
 
-<!-- Обновлены стандартные аудио-ссылки на надежный формат MP3, чтобы работало на iOS -->
+<!-- Обновлены файлы гудков и рингтонов на мягкие MP3 -->
 <audio id="incomingRingtone" preload="auto" playsinline loop></audio>
-<audio id="outgoingRingtone" preload="auto" playsinline loop src="https://assets.mixkit.co/active_storage/sfx/1114/1114-preview.mp3"></audio>
+<audio id="outgoingRingtone" preload="auto" playsinline loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio>
 <audio id="notificationSound" preload="auto" playsinline></audio>
 
 <div id="minimizedCallBar" onclick="expandCall()">
@@ -667,10 +673,10 @@
         <div class="input-group" style="margin-top: 16px;">
             <label>Рингтон входящего вызова</label>
             <select id="ringtoneSelect" class="auth-input" onchange="previewRingtone()">
+                <option value="https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3">Современный звонок (Мягкий)</option>
                 <option value="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3">Классический телефон</option>
-                <option value="https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3">Современный звонок</option>
-                <option value="https://assets.mixkit.co/active_storage/sfx/1005/1005-preview.mp3">Мягкий сигнал</option>
-                <option value="custom">Своя ссылка (MP3)...</option>
+                <option value="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg">Будильник (Android)</option>
+                <option value="custom">📁 Загрузить свой файл...</option>
             </select>
         </div>
         <div class="input-group">
@@ -678,7 +684,6 @@
             <select id="notifSelect" class="auth-input" onchange="previewNotif()">
                 <option value="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3">Легкий Pop</option>
                 <option value="https://assets.mixkit.co/active_storage/sfx/1114/1114-preview.mp3">Системное уведомление</option>
-                <option value="https://assets.mixkit.co/active_storage/sfx/2361/2361-preview.mp3">Короткий звон</option>
                 <option value="none">Без звука</option>
             </select>
         </div>
@@ -801,7 +806,6 @@
     function safePlayAudio(audioElement, isRingtone = false) {
         if (!audioElement || !audioElement.src || audioElement.src.includes('none')) return;
         audioElement.loop = isRingtone;
-        audioElement.volume = 1;
         audioElement.currentTime = 0;
         
         const playPromise = audioElement.play();
@@ -830,7 +834,12 @@
             const notif = document.getElementById('notificationSound');
             if (notif && notif.src) notif.play().then(()=>notif.pause()).catch(()=>{});
         }
+        audioUnlocked = true;
     }
+
+    // Настраиваем громкость гудков
+    const outRing = document.getElementById('outgoingRingtone');
+    outRing.volume = 0.15; // СНИЖАЕМ ГРОМКОСТЬ ГУДКОВ ЧТОБЫ НЕ БИЛИ ПО УШАМ
 
     function hashString(str) { return btoa(unescape(encodeURIComponent(str))); }
 
@@ -854,7 +863,6 @@
     const githubProvider = new firebase.auth.GithubAuthProvider();
     
     const inRing = document.getElementById('incomingRingtone');
-    const outRing = document.getElementById('outgoingRingtone');
     const notifSound = document.getElementById('notificationSound');
     
     const ensureArray = (data) => {
@@ -874,7 +882,7 @@
     
     let localSettings = JSON.parse(localStorage.getItem('Nexagram_Settings')) || { theme: 'green', lightMode: false };
     
-    let currentRingtone = localSettings.ringtone || "https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3";
+    let currentRingtone = localSettings.ringtone || "https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3";
     let currentNotif = localSettings.notifSound || "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
     function applySounds() {
@@ -1187,7 +1195,10 @@
         renderCallControls(); safePlayAudio(outRing, true);
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo ? { facingMode: currentFacingMode } : false });
+            // ИСПРАВЛЕНИЕ: Добавлено аппаратное подавление эха и шумов в браузере!
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            
             if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             peerConnection = new RTCPeerConnection(rtcConfig); localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
             peerConnection.ontrack = event => { 
@@ -1216,7 +1227,10 @@
         if (!currentCallId) return; inRing.pause(); inRing.currentTime = 0; currentCallIsVideo = isVideo; setCallStatusText('Соединение...');
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true; renderCallControls();
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo ? { facingMode: currentFacingMode } : false });
+            // ИСПРАВЛЕНИЕ: Добавлено аппаратное подавление эха и шумов в браузере!
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            
             if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             peerConnection = new RTCPeerConnection(rtcConfig); localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
             peerConnection.ontrack = event => { 
@@ -1713,6 +1727,8 @@
             const otherId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1; 
             const contact = db.users.find(u => u.id === otherId);
             const isFriend = me.friends.includes(contact.id);
+            
+            // ИСПРАВЛЕНИЕ: Звездочка только у админов
             const starHtml = isSuperAdmin(contact) ? ' <span style="color: #30d158; font-size: 18px;">★</span>' : '';
             
             let addBtnHtml = '';
@@ -1864,6 +1880,7 @@
 
     async function resetFirebasePassword() { const email = document.getElementById('forgotLogin').value.trim().toLowerCase(); if (!email || !email.includes('@')) return showToast('Введите корректный Email в первое поле'); try { await firebase.auth().sendPasswordResetEmail(email); alert('Письмо для сброса пароля отправлено на ' + email + '.\nОбязательно проверьте папку "Спам" или "Рассылки"!'); closeForgotModal(); } catch (error) { showToast('Ошибка: ' + error.message); } }
     
+    // ИСПРАВЛЕНИЕ: Симметричное добавление без лишних кликов
     function acceptReq(id) { 
         const myIdx = db.users.findIndex(u => u.id === me.id);
         const fIdx = db.users.findIndex(u => u.id === id);
@@ -1931,17 +1948,31 @@
     function previewRingtone() {
         let val = document.getElementById('ringtoneSelect').value;
         if (val === 'custom') {
-            val = prompt("Введите прямую ссылку на аудиофайл (mp3, ogg):");
-            if (val && val.trim()) {
-                let opt = document.createElement('option');
-                opt.value = val.trim();
-                opt.text = "Свой рингтон";
-                document.getElementById('ringtoneSelect').add(opt);
-                document.getElementById('ringtoneSelect').value = val.trim();
-            } else {
-                document.getElementById('ringtoneSelect').value = currentRingtone;
-                return;
-            }
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'audio/*';
+            input.onchange = async e => {
+                if(e.target.files[0]) {
+                    const url = await uploadToCloud(e.target.files[0]);
+                    if (url) {
+                        let opt = document.createElement('option');
+                        opt.value = url;
+                        opt.text = "Свой рингтон";
+                        document.getElementById('ringtoneSelect').add(opt);
+                        document.getElementById('ringtoneSelect').value = url;
+                        
+                        let audio = document.getElementById('incomingRingtone');
+                        audio.src = url;
+                        audio.play().catch(err => console.warn('Preview blocked:', err));
+                    } else {
+                        document.getElementById('ringtoneSelect').value = currentRingtone;
+                    }
+                } else {
+                    document.getElementById('ringtoneSelect').value = currentRingtone;
+                }
+            };
+            input.click();
+            return;
         }
         let audio = document.getElementById('incomingRingtone');
         audio.src = val;
@@ -1971,4 +2002,4 @@
     }
 </script>
 </body>
-  </html>
+    </html>
