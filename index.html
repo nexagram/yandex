@@ -3,6 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- Редирект на ПК-версию -->
+    <script>
+        function checkDevice() {
+            if (window.innerWidth >= 768) {
+                if (!window.location.href.includes('/pc')) {
+                    window.location.href = 'https://nexagram.site/pc';
+                }
+            }
+        }
+        checkDevice();
+        window.addEventListener('resize', checkDevice);
+    </script>
+
     <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -361,7 +375,7 @@
         .mp-head { display: flex; justify-content: space-between; padding: 16px; font-size: 24px; position: sticky; top: 0; z-index: 10; background: rgba(var(--bg), 0.8); backdrop-filter: blur(15px); }
         
         /* КВАДРАТНАЯ АВАТАРКА В ПРОФИЛЕ */
-        .mp-av-wrap { margin: 20px auto; width: 140px; height: 140px; border-radius: 16px; overflow: hidden; background: var(--in); display: flex; align-items: center; justify-content: center; font-size: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); transition: transform 0.2s; cursor: pointer; }
+        .mp-av-wrap { margin: 20px auto; width: 140px; height: 140px; border-radius: 24px; overflow: hidden; background: var(--in); display: flex; align-items: center; justify-content: center; font-size: 50px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); transition: transform 0.2s; }
         .mp-av-wrap:active { transform: scale(0.95); }
         
         .mp-name { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -379,45 +393,6 @@
         .mp-info-icon { font-size: 24px; color: var(--p); opacity: 0.8; }
         .mp-action-row { background: var(--card); border-radius: 20px; margin: 0 16px 16px; padding: 16px; text-align: center; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border: 1px solid var(--brd); transition: 0.2s;}
         .mp-action-row:active { transform: scale(0.98); background: var(--in); }
-
-        /* ================= ДЕСКТОП ВЕРСИЯ (PC) ================= */
-        @media (min-width: 768px) {
-            body { 
-                display: flex; justify-content: center; align-items: center; 
-                background-color: #0f0f11; background-image: radial-gradient(circle at center, #1a1a20 0%, #000 100%); 
-            }
-            #app, .auth-screen { 
-                width: 100%; max-width: 1100px; height: 90vh !important; max-height: 850px; 
-                border-radius: 20px; box-shadow: 0 25px 80px rgba(0,0,0,0.6); 
-                transform: translateZ(0); 
-                border: 1px solid #2a2a2a; margin: auto; position: relative; overflow: hidden;
-            }
-            .content { width: 350px; border-right: 1px solid var(--brd); height: 100%; padding-bottom: 64px; }
-            .nav { width: 350px; position: absolute; left: 0; bottom: 0; border-top: 1px solid var(--brd); border-radius: 0 0 0 20px; }
-            
-            #chat-window { 
-                position: absolute; top: 0; right: 0; bottom: 0; left: 350px; 
-                transform: none !important; visibility: visible !important; display: flex !important;
-                border-radius: 0 20px 20px 0; background: var(--bg); border-left: 1px solid var(--brd);
-            }
-            #chat-window::before { 
-                content: 'Выберите чат для общения'; position: absolute; inset: 0; 
-                display: flex; align-items: center; justify-content: center; 
-                background: var(--bg); color: var(--mut); z-index: 1000; 
-                font-size: 16px; font-weight: 500; transition: opacity 0.3s ease; 
-                border-radius: 0 20px 20px 0;
-            }
-            #chat-window.active::before { opacity: 0; pointer-events: none; }
-            .back-btn { display: none !important; }
-            
-            #profile-view-screen { 
-                position: absolute; top: 0; right: 0; bottom: 0; left: 350px; 
-                border-left: 1px solid var(--brd); border-radius: 0 20px 20px 0;
-            }
-            
-            #callOverlay, .modal, #storyViewer { position: absolute; border-radius: 20px; }
-            .chat-input-area { padding-bottom: 12px !important; }
-        }
     </style>
 </head>
 <body>
@@ -667,7 +642,7 @@
    <div id="profile-view-content" style="padding-bottom: 40px;"></div>
 </div>
 
-<!-- УПРОЩЕННАЯ МОДАЛКА НАСТРОЕК ЗВУКА -->
+<!-- МОДАЛКА НАСТРОЕК ЗВУКА -->
 <div id="soundModal" class="modal">
     <div class="modal-content">
         <h3>Звуки и уведомления</h3>
@@ -801,12 +776,9 @@
         const playPromise = audioElement.play();
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                console.warn("Audio autoplay blocked by browser policy:", error);
+                console.warn("Браузер заблокировал звук:", error);
                 const toast = document.getElementById('audio-unlock-toast');
-                if(toast) {
-                    toast.style.display = 'block';
-                    toast.classList.add('shake');
-                }
+                if(toast) { toast.style.display = 'block'; toast.classList.add('shake'); }
                 if (isRingtone) window.pendingRingtone = audioElement;
             });
         }
@@ -814,45 +786,8 @@
 
     function forceUnlockAudio() {
         document.getElementById('audio-unlock-toast').style.display = 'none';
-        
-        if (window.pendingRingtone) {
-            window.pendingRingtone.play().catch(e => console.error("Still blocked:", e));
-            window.pendingRingtone = null;
-        } else {
-            const out = document.getElementById('outgoingRingtone');
-            if (out && out.src) out.play().then(()=>out.pause()).catch(()=>{});
-            const notif = document.getElementById('notificationSound');
-            if (notif && notif.src) notif.play().then(()=>notif.pause()).catch(()=>{});
-        }
-        audioUnlocked = true;
+        if (window.pendingRingtone) { window.pendingRingtone.play().catch(e => console.error(e)); window.pendingRingtone = null; }
     }
-
-    let audioUnlocked = false;
-    function globalAudioUnlocker() {
-        if (audioUnlocked) return;
-        ['incomingRingtone', 'outgoingRingtone', 'notificationSound'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.src) {
-                const origVol = el.volume;
-                el.volume = 0;
-                const p = el.play();
-                if (p !== undefined) {
-                    p.then(() => {
-                        if (id === 'incomingRingtone' && document.getElementById('callOverlay').classList.contains('active')) {
-                            el.volume = 1; 
-                        } else {
-                            el.pause(); el.currentTime = 0; el.volume = origVol;
-                        }
-                    }).catch(()=>{});
-                }
-            }
-        });
-        audioUnlocked = true;
-        document.removeEventListener('click', globalAudioUnlocker);
-        document.removeEventListener('touchstart', globalAudioUnlocker);
-    }
-    document.addEventListener('click', globalAudioUnlocker);
-    document.addEventListener('touchstart', globalAudioUnlocker);
 
     // Понижаем громкость исходящих гудков, чтобы не резало уши
     document.getElementById('outgoingRingtone').volume = 0.2;
@@ -916,9 +851,10 @@
     let mediaRecorder = null; let recordedChunks = []; let isRecordingVoice = false; let isRecordingVideo = false;
     let replyingTo = null; let forwardingMsg = null; let typingTimeout = null;
 
+    const builtInAvatars = ['😀', '😎', '🦊', '🐱', '🐶', '🦁', '🐼', '🐨', '⭐', '🔥', '🌈', '🎨', '🚀', '💎', '🎮', '🎵', '💪', '🧠', '❤️', '💙', '💚', '💛', '💜', '🖤'];
+
     let peerConnection = null; let localStream = null; let currentCallId = null; let callRef = null;
     let isCallMicMuted = false; let isCallCamOff = false; let isSpeakerOn = true; let currentCallIsVideo = false; let currentFacingMode = 'user';
-    let ringTimeout = null; // Таймер для отмены звонка через 25 сек
 
     const rtcConfig = { 
         iceServers: [
@@ -1137,12 +1073,6 @@
         
         safePlayAudio(inRing, true);
         
-        // Автосброс если не берет трубку
-        clearTimeout(ringTimeout);
-        ringTimeout = setTimeout(() => {
-            if (currentCallId) cleanupCall();
-        }, 26000);
-        
         if ("Notification" in window && Notification.permission === "granted" && document.hidden) { 
             if(swRegistration) swRegistration.showNotification('Входящий вызов', { body: `Звонит ${caller.name}`, icon: 'icon.png' });
             else new Notification('Входящий вызов', { body: `Звонит ${caller.name}` }); 
@@ -1172,7 +1102,7 @@
         }).join('');
     }
 
-    // ИСПРАВЛЕНИЕ "КАРТОШКИ": Откладываем запрос микрофона до момента принятия звонка
+    // === ИСПРАВЛЕНИЕ: МИКРОФОН ЗАПРАШИВАЕТСЯ СТРОГО ПО КЛИКУ ===
     async function initiateCall(isVideo) {
         if (!activeChat || activeChat.type !== 'direct') return;
         const targetUserId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1; const targetUser = db.users.find(u => u.id === targetUserId);
@@ -1186,80 +1116,68 @@
         document.getElementById('minimizedCallBar').style.display = 'none';
         document.getElementById('callCenterArea').style.display = 'flex'; document.getElementById('callTopCenter').style.display = 'none';
         renderCallControls(); 
-        
-        safePlayAudio(outRing, true);
 
-        // Пишем звонок в базу БЕЗ открытия микрофона, чтобы не портить качество ожидания
-        await rtdb.ref(`/dg_calls/${currentCallId}`).set({ caller: me.id, callee: targetUserId, status: 'ringing', isVideo: isVideo });
-        await rtdb.ref(`/dg_user_calls/${targetUserId}`).set(currentCallId);
-        
-        // Автосброс если никто не ответил через 25 сек
-        clearTimeout(ringTimeout);
-        ringTimeout = setTimeout(async () => {
-            if (currentCallId) {
-                const snap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value');
-                const data = snap.val();
-                if (data && data.status === 'ringing') {
-                    showToast('Нет ответа');
-                    endCall();
-                }
-            }
-        }, 25000);
-
-        let isConnecting = false;
-
-        callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
-        callRef.on('value', async snap => {
-            const data = snap.val(); if (!data) return cleanupCall();
+        try {
+            // Запрашиваем микрофон мгновенно по клику. Аппаратное подавление эха и шумов ВКЛЮЧЕНО!
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             
-            // Если собеседник принял звонок, ТЕПЕРЬ запрашиваем микрофон
-            if (data.status === 'accepting' && !isConnecting) {
-                isConnecting = true;
-                outRing.pause(); outRing.currentTime = 0; setCallStatusText('Соединение...');
-                try {
-                    // Аппаратное эхоподавление от писка, но БЕЗ агрессивного сжатия голоса
-                    const audioConstraints = { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: currentCallIsVideo ? { facingMode: currentFacingMode } : false });
-                    if (currentCallIsVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
-                    
-                    peerConnection = new RTCPeerConnection(rtcConfig); 
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                    
-                    peerConnection.ontrack = event => { 
-                        const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
-                        if (event.track.kind === 'video') {
-                            if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
-                            rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
-                        } else {
-                            if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
-                            rAud.play().catch(e=>{});
-                        }
-                    };
-                    peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).push(event.candidate.toJSON()); };
-                    
-                    const offer = await peerConnection.createOffer(); await peerConnection.setLocalDescription(offer);
-                    await rtdb.ref(`/dg_calls/${currentCallId}`).update({ offer: { type: offer.type, sdp: offer.sdp }, status: 'offering' });
+            peerConnection = new RTCPeerConnection(rtcConfig); 
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = event => { 
+                const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+                if (currentCallIsVideo) {
+                    const rVid = document.getElementById('remoteVideo');
+                    if (!rVid.srcObject) {
+                        rVid.srcObject = stream;
+                        rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
+                    } else {
+                        rVid.srcObject.addTrack(event.track);
+                    }
+                } else {
+                    const rAud = document.getElementById('remoteAudio');
+                    if (!rAud.srcObject) {
+                        rAud.srcObject = stream;
+                        rAud.play().catch(e=>{});
+                    } else {
+                        rAud.srcObject.addTrack(event.track);
+                    }
+                }
+            };
+            peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).push(event.candidate.toJSON()); };
+            
+            const offer = await peerConnection.createOffer(); await peerConnection.setLocalDescription(offer);
+            
+            safePlayAudio(outRing, true);
 
-                } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
-            }
-            else if (data.answer && peerConnection && peerConnection.signalingState === 'have-local-offer') {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: 'connected' });
+            await rtdb.ref(`/dg_calls/${currentCallId}`).set({ caller: me.id, callee: targetUserId, offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing', isVideo: isVideo });
+            await rtdb.ref(`/dg_user_calls/${targetUserId}`).set(currentCallId);
+            
+            let isAnswerProcessed = false;
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
+            callRef.on('value', async snap => {
+                const data = snap.val(); if (!data) return cleanupCall();
                 
-                // Безопасно подписываемся на ICE только после установки RemoteDescription
-                rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).on('child_added', snap => { 
-                    if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e)); 
-                });
-            }
-            else if (data.status === 'connected' && !callInterval) {
-                outRing.pause(); outRing.currentTime = 0;
-                setCallStatusText('Разговор (0:00)'); startCallTimer();
-            }
-            else if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') {
-                cleanupCall(); 
-                if (data.caller === me.id) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: data.status, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
-            }
-        });
+                if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') {
+                    cleanupCall(); 
+                    if (data.caller === me.id) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: data.status, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
+                    return;
+                }
+
+                if (data.answer && !isAnswerProcessed) {
+                    isAnswerProcessed = true;
+                    outRing.pause(); outRing.currentTime = 0;
+                    setCallStatusText('Разговор (0:00)');
+                    startCallTimer();
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                }
+            });
+
+            rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).on('child_added', snap => { if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e)); });
+            
+        } catch (e) { showToast('Ошибка микрофона: ' + e.message); cleanupCall(); }
     }
 
     async function acceptCall(isVideo) {
@@ -1268,55 +1186,60 @@
         setCallStatusText('Соединение...');
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true; renderCallControls();
         
-        let isConnecting = false;
-        await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: 'accepting' });
-        await rtdb.ref(`/dg_user_calls/${me.id}`).remove();
-        
-        callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
-        callRef.on('value', async snap => {
-            const data = snap.val(); if (!data || data.status === 'ended' || data.status === 'declined' || data.status === 'missed') return cleanupCall();
+        try {
+            // Запрашиваем микрофон мгновенно по клику.
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
+            if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
             
-            if (data.offer && !isConnecting) {
-                isConnecting = true;
-                try {
-                    // Аппаратное эхоподавление от писка, но БЕЗ сжатия голоса
-                    const audioConstraints = { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: isVideo ? { facingMode: currentFacingMode } : false });
-                    if (isVideo) { const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.display = 'block'; localVid.style.transform = 'scaleX(-1)'; }
-                    
-                    peerConnection = new RTCPeerConnection(rtcConfig); 
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                    
-                    peerConnection.ontrack = event => { 
-                        const rVid = document.getElementById('remoteVideo'); const rAud = document.getElementById('remoteAudio');
-                        if (event.track.kind === 'video') {
-                            if (!rVid.srcObject) rVid.srcObject = new MediaStream([event.track]); else rVid.srcObject.addTrack(event.track);
-                            rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
-                        } else {
-                            if (!rAud.srcObject) rAud.srcObject = new MediaStream([event.track]); else rAud.srcObject.addTrack(event.track);
-                            rAud.play().catch(e=>{});
-                        }
-                    };
-                    peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).push(event.candidate.toJSON()); };
-                    
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                    
-                    // Безопасно подписываемся на ICE только после установки RemoteDescription
-                    rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).on('child_added', snap => {
-                        if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e));
-                    });
+            peerConnection = new RTCPeerConnection(rtcConfig); 
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = event => { 
+                const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+                if (currentCallIsVideo) {
+                    const rVid = document.getElementById('remoteVideo');
+                    if (!rVid.srcObject) {
+                        rVid.srcObject = stream;
+                        rVid.onloadedmetadata = () => { rVid.play().catch(e=>{}); rVid.classList.add('active-video'); document.getElementById('callTopCenter').style.display='block'; document.getElementById('callCenterArea').style.display='none'; };
+                    } else {
+                        rVid.srcObject.addTrack(event.track);
+                    }
+                } else {
+                    const rAud = document.getElementById('remoteAudio');
+                    if (!rAud.srcObject) {
+                        rAud.srcObject = stream;
+                        rAud.play().catch(e=>{});
+                    } else {
+                        rAud.srcObject.addTrack(event.track);
+                    }
+                }
+            };
+            peerConnection.onicecandidate = event => { if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).push(event.candidate.toJSON()); };
+            
+            const callSnap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value'); 
+            const callData = callSnap.val();
+            
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            const answer = await peerConnection.createAnswer(); 
+            await peerConnection.setLocalDescription(answer);
+            
+            await rtdb.ref(`/dg_calls/${currentCallId}`).update({ answer: { type: answer.type, sdp: answer.sdp }, status: 'connected' });
+            await rtdb.ref(`/dg_user_calls/${me.id}`).remove();
+            
+            setCallStatusText('Разговор (0:00)'); startCallTimer();
 
-                    const answer = await peerConnection.createAnswer(); 
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    await rtdb.ref(`/dg_calls/${currentCallId}`).update({ answer: { type: answer.type, sdp: answer.sdp } });
-                    
-                } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
-            }
-            else if (data.status === 'connected' && !callInterval) {
-                setCallStatusText('Разговор (0:00)'); startCallTimer();
-            }
-        });
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
+            callRef.on('value', snap => {
+                const data = snap.val(); 
+                if (!data || data.status === 'ended' || data.status === 'declined' || data.status === 'missed') return cleanupCall();
+            });
+            
+            rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).on('child_added', snap => {
+                if (snap.val() && peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e=>console.warn(e));
+            });
+            
+        } catch (e) { showToast('Ошибка микрофона: ' + e.message); endCall(); }
     }
 
     async function endCall() {
@@ -1341,14 +1264,14 @@
             const newVideoTrack = newStream.getVideoTracks()[0]; localStream.addTrack(newVideoTrack);
             const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             if (peerConnection) { const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(newVideoTrack); }
-        } catch(e) { console.error("Error", e); alert("Не удалось переключить камеру: " + e.message); }
+        } catch(e) { console.error("Error", e); showToast("Не удалось переключить камеру: " + e.message); }
     }
 
     function toggleCallSpeaker() { isSpeakerOn = !isSpeakerOn; renderCallControls(); const rVid = document.getElementById('remoteVideo'); if (typeof rVid.setSinkId === 'function') { const targetSink = isSpeakerOn ? 'default' : ''; rVid.setSinkId(targetSink).catch(e => console.log(e)); } }
 
     let callInterval; let callSeconds = 0;
     function startCallTimer() { clearInterval(callInterval); callSeconds = 0; callInterval = setInterval(() => { callSeconds++; const m = Math.floor(callSeconds / 60); const s = (callSeconds % 60).toString().padStart(2, '0'); const timeStr = `${m}:${s}`; setCallStatusText(`Разговор (${timeStr})`); const name = document.getElementById('callNameSmall').textContent; document.getElementById('minCallInfo').textContent = `${name} · ${m.toString().padStart(2, '0')}:${s}`; }, 1000); }
-    function cleanupCall() { clearTimeout(ringTimeout); clearInterval(callInterval); if (localStream) localStream.getTracks().forEach(t => t.stop()); if (peerConnection) peerConnection.close(); peerConnection = null; localStream = null; if (callRef) callRef.off(); currentCallId = null; hideCallUI(); }
+    function cleanupCall() { clearInterval(callInterval); if (localStream) localStream.getTracks().forEach(t => t.stop()); if (peerConnection) peerConnection.close(); peerConnection = null; localStream = null; if (callRef) callRef.off(); currentCallId = null; hideCallUI(); }
 
     // ================= АВТОРИЗАЦИЯ И СОЦСЕТИ =================
 
@@ -2043,4 +1966,4 @@
     }
 </script>
 </body>
-                                                                                         </html>
+    </html>
