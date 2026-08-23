@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexagram — мессенджер нового поколения</title>
+<meta name="description" content="Nexagram — быстрый мессенджер с звонками, каналами, историями и полной приватностью.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0a08;
+    --bg2: #14110e;
+    --card: #1a1612;
+    --brd: rgba(255,200,120,0.12);
+    --txt: #f5efe6;
+    --mut: #a89a88;
+    --gold: #e8b84a;
+    --gold2: #f0c96a;
+    --gold-dim: rgba(232,184,74,0.15);
+    --shadow: 0 24px 80px rgba(0,0,0,0.55);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+
+  /* NAV */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    background: rgba(12,10,8,0.75);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--brd);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 800; font-size: 20px; letter-spacing: -0.03em;
+  }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--gold), #c47a1a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 900; color: #1a1208;
+  }
+  .nav-links {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-links a {
+    padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    color: var(--mut); transition: color .2s, background .2s;
+  }
+  .nav-links a:hover { color: var(--txt); background: rgba(255,255,255,0.05); }
+  .lang-switch {
+    display: flex; background: var(--card); border-radius: 999px; padding: 3px;
+    border: 1px solid var(--brd); margin-left: 8px;
+  }
+  .lang-switch button {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    color: var(--mut);
+  }
+  .lang-switch button.active {
+    background: var(--gold); color: #1a1208;
+  }
+  .nav-cta {
+    margin-left: 10px;
+    background: var(--gold); color: #1a1208;
+    font-weight: 700; font-size: 13px;
+    padding: 10px 18px; border-radius: 999px;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(232,184,74,0.35); }
+  .burger {
+    display: none; width: 40px; height: 40px; border-radius: 10px;
+    align-items: center; justify-content: center; color: var(--txt);
+    border: 1px solid var(--brd);
+  }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    align-items: center;
+    gap: 40px;
+    padding: 110px 48px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: -20% -10% auto auto;
+    width: 60%; height: 80%;
+    background: radial-gradient(ellipse, rgba(232,184,74,0.12), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--gold-dim); color: var(--gold2);
+    font-size: 13px; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid rgba(232,184,74,0.25);
+    margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 800; letter-spacing: -0.04em; line-height: 1.08;
+    margin-bottom: 18px;
+  }
+  .hero h1 span {
+    background: linear-gradient(120deg, var(--gold2), #fff3d0 50%, var(--gold));
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .hero p.lead {
+    font-size: 17px; color: var(--mut); max-width: 440px;
+    margin-bottom: 32px; line-height: 1.6;
+  }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--gold); color: #1a1208;
+    font-weight: 700; font-size: 15px;
+    padding: 14px 24px; border-radius: 999px;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(232,184,74,0.4); }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: transparent; color: var(--txt);
+    font-weight: 600; font-size: 15px;
+    padding: 14px 24px; border-radius: 999px;
+    border: 1px solid var(--brd);
+    transition: background .2s, border-color .2s;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,200,120,0.3); }
+
+  /* PHONE */
+  .phone-wrap {
+    display: flex; justify-content: center; align-items: center;
+    position: relative;
+  }
+  .phone {
+    width: 300px; height: 600px;
+    background: #161210;
+    border-radius: 40px;
+    border: 3px solid #2a241c;
+    box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,0.04);
+    overflow: hidden; position: relative;
+  }
+  .phone-notch {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 28px; background: #0c0a08; border-radius: 20px; z-index: 5;
+  }
+  .phone-screen {
+    height: 100%; display: flex; flex-direction: column;
+    padding-top: 44px;
+  }
+  .ph-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .ph-av {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #e8b84a, #c47a1a);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: #1a1208;
+  }
+  .ph-name { font-weight: 700; font-size: 14px; }
+  .ph-status { font-size: 11px; color: #6dcf7a; }
+  .ph-msgs {
+    flex: 1; padding: 16px 12px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 8px;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(232,184,74,0.06), transparent 50%),
+      #100e0b;
+  }
+  .bubble {
+    max-width: 78%; padding: 10px 12px; border-radius: 16px;
+    font-size: 13px; line-height: 1.35;
+    animation: bubbleIn .45s ease both;
+    opacity: 0;
+  }
+  .bubble.in { background: #242018; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .bubble.out {
+    background: linear-gradient(135deg, #c9a227, #e8b84a);
+    color: #1a1208; align-self: flex-end; border-bottom-right-radius: 4px;
+    font-weight: 500;
+  }
+  .bubble .time { font-size: 10px; opacity: 0.55; margin-top: 4px; text-align: right; }
+  @keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  .ph-input {
+    display: flex; gap: 8px; padding: 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: #14110e;
+  }
+  .ph-input span {
+    flex: 1; background: #1e1a15; border-radius: 20px;
+    padding: 10px 14px; font-size: 12px; color: var(--mut);
+  }
+
+  /* SECTIONS */
+  section { padding: 80px 28px; max-width: 1100px; margin: 0 auto; }
+  .sec-title {
+    text-align: center; margin-bottom: 48px;
+  }
+  .sec-title h2 {
+    font-size: clamp(28px, 4vw, 40px); font-weight: 800;
+    letter-spacing: -0.03em; margin-bottom: 12px;
+  }
+  .sec-title p { color: var(--mut); font-size: 16px; max-width: 480px; margin: 0 auto; }
+
+  .features {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+  }
+  .feat {
+    background: var(--card);
+    border: 1px solid var(--brd);
+    border-radius: 20px;
+    padding: 28px 24px;
+    transition: transform .2s, border-color .2s;
+  }
+  .feat:hover { transform: translateY(-4px); border-color: rgba(232,184,74,0.3); }
+  .feat-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: var(--gold-dim); color: var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 16px;
+  }
+  .feat h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .feat p { font-size: 14px; color: var(--mut); line-height: 1.55; }
+
+  /* FAQ */
+  .faq-list { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  .faq-item {
+    background: var(--card); border: 1px solid var(--brd);
+    border-radius: 16px; overflow: hidden;
+  }
+  .faq-q {
+    width: 100%; text-align: left;
+    padding: 18px 20px; font-weight: 600; font-size: 15px;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px;
+  }
+  .faq-q span.chev { color: var(--gold); transition: transform .25s; }
+  .faq-item.open .faq-q span.chev { transform: rotate(180deg); }
+  .faq-a {
+    max-height: 0; overflow: hidden;
+    transition: max-height .3s ease, padding .3s;
+    color: var(--mut); font-size: 14px; line-height: 1.55;
+    padding: 0 20px;
+  }
+  .faq-item.open .faq-a { max-height: 200px; padding: 0 20px 18px; }
+
+  /* DOWNLOAD */
+  .download-box {
+    background: linear-gradient(145deg, #1a1612, #241c14);
+    border: 1px solid var(--brd);
+    border-radius: 28px;
+    padding: 48px 32px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .download-box::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(232,184,74,0.15), transparent 60%);
+    pointer-events: none;
+  }
+  .download-box h2 { font-size: 32px; font-weight: 800; margin-bottom: 12px; position: relative; }
+  .download-box p { color: var(--mut); margin-bottom: 28px; position: relative; }
+  .dl-row {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+    position: relative;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--brd);
+    padding: 28px;
+    text-align: center;
+    color: var(--mut); font-size: 13px;
+  }
+  footer a { color: var(--gold); }
+
+  /* MOBILE */
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; text-align: center; padding: 100px 20px 40px; }
+    .hero p.lead { margin-left: auto; margin-right: auto; }
+    .hero-actions { justify-content: center; }
+    .phone { width: 260px; height: 520px; }
+    .features { grid-template-columns: 1fr; }
+    .nav-links .hide-m { display: none; }
+    .burger { display: flex; }
+  }
+  @media (max-width: 600px) {
+    .nav { padding: 12px 16px; }
+    .nav-cta { display: none; }
+  }
+
+  /* mobile menu */
+  .mobile-menu {
+    display: none; position: fixed; inset: 0; z-index: 99;
+    background: rgba(12,10,8,0.95); backdrop-filter: blur(12px);
+    flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  }
+  .mobile-menu.open { display: flex; }
+  .mobile-menu a {
+    font-size: 22px; font-weight: 700; color: var(--txt);
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="#" class="logo">
+    <div class="logo-mark">N</div>
+    Nexagram
+  </a>
+  <div class="nav-links">
+    <a href="#features" class="hide-m" data-i18n="nav_features">Возможности</a>
+    <a href="#faq" class="hide-m" data-i18n="nav_faq">FAQ</a>
+    <a href="#download" class="hide-m" data-i18n="nav_download">Скачать</a>
+    <div class="lang-switch">
+      <button type="button" id="langRu" class="active" onclick="setLang('ru')">RU</button>
+      <button type="button" id="langEn" onclick="setLang('en')">EN</button>
+    </div>
+    <a href="https://nexagram.site/" class="nav-cta" data-i18n="nav_open">Открыть</a>
+    <button type="button" class="burger" onclick="toggleMenu()" aria-label="Menu">☰</button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features" onclick="toggleMenu()" data-i18n="nav_features">Возможности</a>
+  <a href="#faq" onclick="toggleMenu()" data-i18n="nav_faq">FAQ</a>
+  <a href="#download" onclick="toggleMenu()" data-i18n="nav_download">Скачать</a>
+  <a href="https://nexagram.site/" class="btn-primary" data-i18n="nav_open">Открыть</a>
+</div>
+
+<section class="hero">
+  <div>
+    <div class="hero-badge" data-i18n="badge">✦ Бесплатно · Без рекламы</div>
+    <h1 data-i18n-html="hero_title">Мессенджер<br><span>нового уровня</span></h1>
+    <p class="lead" data-i18n="hero_lead">Звонки, каналы, истории и группы — всё в одном месте. Быстро, красиво и под твоим контролем.</p>
+    <div class="hero-actions">
+      <a href="https://nexagram.site/" class="btn-primary">
+        <span data-i18n="btn_open">Открыть веб</span>
+      </a>
+      <a href="#download" class="btn-ghost" data-i18n="btn_download">Скачать</a>
+    </div>
+  </div>
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="ph-head">
+          <div class="ph-av">А</div>
+          <div>
+            <div class="ph-name" data-i18n="demo_name">Аня</div>
+            <div class="ph-status" data-i18n="demo_online">в сети</div>
+          </div>
+        </div>
+        <div class="ph-msgs" id="demoMsgs">
+          <!-- bubbles injected by JS -->
+        </div>
+        <div class="ph-input">
+          <span data-i18n="demo_placeholder">Сообщение...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="sec-title">
+    <h2 data-i18n="feat_title">Всё, что нужно</h2>
+    <p data-i18n="feat_sub">Современный мессенджер без лишнего шума</p>
+  </div>
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon">💬</div>
+      <h3 data-i18n="f1_t">Чаты и группы</h3>
+      <p data-i18n="f1_d">Личные сообщения, группы и каналы с админами, закрепами и поиском.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📞</div>
+      <h3 data-i18n="f2_t">Аудио и видеозвонки</h3>
+      <p data-i18n="f2_d">WebRTC-звонки с гудком ожидания, таймером и управлением микрофоном.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">◉</div>
+      <h3 data-i18n="f3_t">Истории</h3>
+      <p data-i18n="f3_d">Фото, видео и текстовые истории на 24 часа — как в привычных мессенджерах.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔒</div>
+      <h3 data-i18n="f4_t">Приватность</h3>
+      <p data-i18n="f4_d">Блокировка пользователей, статусы «в сети» и контроль над аккаунтом.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🎨</div>
+      <h3 data-i18n="f5_t">Темы</h3>
+      <p data-i18n="f5_d">Несколько цветовых схем, светлый и тёмный режим под настроение.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🌐</div>
+      <h3 data-i18n="f6_t">RU / EN</h3>
+      <p data-i18n="f6_d">Полная локализация интерфейса — переключай язык в один тап.</p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="sec-title">
+    <h2 data-i18n="faq_title">Частые вопросы</h2>
+    <p data-i18n="faq_sub">Коротко о главном</p>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <button type="button" class="faq-q" onclick="toggleFaq(this)">
+        <span data-i18n="q1">Это бесплатно?</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="faq-a" data-i18n="a1">Да. Nexagram можно использовать бесплатно, без скрытых подписок и рекламы в чатах.</div>
+    </div>
+    <div class="faq-item">
+      <button type="button" class="faq-q" onclick="toggleFaq(this)">
+        <span data-i18n="q2">Нужно устанавливать приложение?</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="faq-a" data-i18n="a2">Можно открыть в браузере на телефоне или ПК. Для удобства добавь сайт на домашний экран.</div>
+    </div>
+    <div class="faq-item">
+      <button type="button" class="faq-q" onclick="toggleFaq(this)">
+        <span data-i18n="q3">Как включить уведомления?</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="faq-a" data-i18n="a3">В настройках нажми «Включить уведомления» и разреши их в браузере. Для пушей при закрытом сайте нужен FCM (Cloud Functions).</div>
+    </div>
+    <div class="faq-item">
+      <button type="button" class="faq-q" onclick="toggleFaq(this)">
+        <span data-i18n="q4">Где хранятся данные?</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="faq-a" data-i18n="a4">Чаты синхронизируются через Firebase Realtime Database. Медиа загружаются в облачное хранилище.</div>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="download-box">
+    <h2 data-i18n="dl_title">Начни прямо сейчас</h2>
+    <p data-i18n="dl_sub">Открой веб-версию или сохрани ссылку</p>
+    <div class="dl-row">
+      <a href="https://nexagram.site/" class="btn-primary" data-i18n="btn_open">Открыть веб</a>
+      <a href="https://nexagram.site/pc.html" class="btn-ghost" data-i18n="btn_pc">Версия для ПК</a>
+      <a href="https://nexagram.site/app.html" class="btn-ghost" data-i18n="btn_app">Мобильная</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>© <span id="y"></span> Nexagram · <a href="https://nexagram.site/terms">Terms</a> · <a href="https://nexagram.site/privacy">Privacy</a></p>
+</footer>
+
+<script>
+  const I18N = {
+    ru: {
+      nav_features: 'Возможности', nav_faq: 'FAQ', nav_download: 'Скачать', nav_open: 'Открыть',
+      badge: '✦ Бесплатно · Без рекламы',
+      hero_title: 'Мессенджер<br><span>нового уровня</span>',
+      hero_lead: 'Звонки, каналы, истории и группы — всё в одном месте. Быстро, красиво и под твоим контролем.',
+      btn_open: 'Открыть веб', btn_download: 'Скачать', btn_pc: 'Версия для ПК', btn_app: 'Мобильная',
+      demo_name: 'Аня', demo_online: 'в сети', demo_placeholder: 'Сообщение...',
+      feat_title: 'Всё, что нужно', feat_sub: 'Современный мессенджер без лишнего шума',
+      f1_t: 'Чаты и группы', f1_d: 'Личные сообщения, группы и каналы с админами, закрепами и поиском.',
+      f2_t: 'Аудио и видеозвонки', f2_d: 'WebRTC-звонки с гудком ожидания, таймером и управлением микрофоном.',
+      f3_t: 'Истории', f3_d: 'Фото, видео и текстовые истории на 24 часа — как в привычных мессенджерах.',
+      f4_t: 'Приватность', f4_d: 'Блокировка пользователей, статусы «в сети» и контроль над аккаунтом.',
+      f5_t: 'Темы', f5_d: 'Несколько цветовых схем, светлый и тёмный режим под настроение.',
+      f6_t: 'RU / EN', f6_d: 'Полная локализация интерфейса — переключай язык в один тап.',
+      faq_title: 'Частые вопросы', faq_sub: 'Коротко о главном',
+      q1: 'Это бесплатно?', a1: 'Да. Nexagram можно использовать бесплатно, без скрытых подписок и рекламы в чатах.',
+      q2: 'Нужно устанавливать приложение?', a2: 'Можно открыть в браузере на телефоне или ПК. Для удобства добавь сайт на домашний экран.',
+      q3: 'Как включить уведомления?', a3: 'В настройках нажми «Включить уведомления» и разреши их в браузере. Для пушей при закрытом сайте нужен FCM (Cloud Functions).',
+      q4: 'Где хранятся данные?', a4: 'Чаты синхронизируются через Firebase Realtime Database. Медиа загружаются в облачное хранилище.',
+      dl_title: 'Начни прямо сейчас', dl_sub: 'Открой веб-версию или сохрани ссылку',
+      msgs: [
+        { t: 'in', text: 'Доброе утро ☀️', time: '9:30' },
+        { t: 'in', text: 'Как спалось?', time: '9:30' },
+        { t: 'out', text: 'Привет! Отлично 👋', time: '9:31' },
+        { t: 'in', text: 'Ты уже выходишь?', time: '9:40' },
+        { t: 'out', text: 'Уже выхожу 🚀', time: '9:41' }
+      ]
+    },
+    en: {
+      nav_features: 'Features', nav_faq: 'FAQ', nav_download: 'Download', nav_open: 'Open',
+      badge: '✦ Free · Ad-free',
+      hero_title: 'A messenger<br><span>built differently</span>',
+      hero_lead: 'Calls, channels, stories and groups — all in one place. Fast, polished, under your control.',
+      btn_open: 'Open web', btn_download: 'Download', btn_pc: 'Desktop version', btn_app: 'Mobile',
+      demo_name: 'Anya', demo_online: 'online', demo_placeholder: 'Message...',
+      feat_title: 'Everything you need', feat_sub: 'A modern messenger without the noise',
+      f1_t: 'Chats & groups', f1_d: 'DMs, groups and channels with admins, pins and search.',
+      f2_t: 'Audio & video calls', f2_d: 'WebRTC calls with ringback tone, timer and mic controls.',
+      f3_t: 'Stories', f3_d: 'Photo, video and text stories for 24 hours — familiar and simple.',
+      f4_t: 'Privacy', f4_d: 'Block users, online status and full control of your account.',
+      f5_t: 'Themes', f5_d: 'Color themes, light and dark mode to match your vibe.',
+      f6_t: 'RU / EN', f6_d: 'Full UI localization — switch language in one tap.',
+      faq_title: 'FAQ', faq_sub: 'Short answers',
+      q1: 'Is it free?', a1: 'Yes. Nexagram is free to use — no hidden subscriptions or ads in chats.',
+      q2: 'Do I need to install an app?', a2: 'You can open it in the browser on phone or PC. Add it to your home screen for convenience.',
+      q3: 'How do I enable notifications?', a3: 'In Settings tap “Enable notifications” and allow them in the browser. Background push needs FCM Cloud Functions.',
+      q4: 'Where is data stored?', a4: 'Chats sync via Firebase Realtime Database. Media is uploaded to cloud storage.',
+      dl_title: 'Start now', dl_sub: 'Open the web app or save the link',
+      msgs: [
+        { t: 'in', text: 'Good morning ☀️', time: '9:30' },
+        { t: 'in', text: 'How did you sleep?', time: '9:30' },
+        { t: 'out', text: 'Hey! Great 👋', time: '9:31' },
+        { t: 'in', text: 'Are you leaving?', time: '9:40' },
+        { t: 'out', text: 'On my way 🚀', time: '9:41' }
+      ]
+    }
+  };
+
+  let lang = localStorage.getItem('nexagram_landing_lang') || 'ru';
+
+  function setLang(l) {
+    lang = l;
+    localStorage.setItem('nexagram_landing_lang', l);
+    document.getElementById('langRu').classList.toggle('active', l === 'ru');
+    document.getElementById('langEn').classList.toggle('active', l === 'en');
+    document.documentElement.lang = l;
+    const d = I18N[l];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      if (d[k] != null) el.textContent = d[k];
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+      const k = el.getAttribute('data-i18n-html');
+      if (d[k] != null) el.innerHTML = d[k];
+    });
+    renderDemo();
+  }
+
+  function renderDemo() {
+    const box = document.getElementById('demoMsgs');
+    if (!box) return;
+    box.innerHTML = '';
+    const msgs = I18N[lang].msgs;
+    msgs.forEach((m, i) => {
+      const div = document.createElement('div');
+      div.className = 'bubble ' + m.t;
+      div.style.animationDelay = (0.3 + i * 0.35) + 's';
+      div.innerHTML = m.text + '<div class="time">' + m.time + '</div>';
+      box.appendChild(div);
+    });
+  }
+
+  function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(x => x.classList.remove('open'));
+    if (!open) item.classList.add('open');
+  }
+
+  function toggleMenu() {
+    document.getElementById('mobileMenu').classList.toggle('open');
+  }
+
+  document.getElementById('y').textContent = new Date().getFullYear();
+  setLang(lang);
+</script>
+</body>
+</html>
