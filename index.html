@@ -1155,9 +1155,6 @@
         <button class="auth-btn" style="background:var(--in); color:var(--txt); margin-bottom: 10px; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="copyContactLogin()">
             <span class="material-symbols-outlined">content_copy</span> <span id="copyLoginText">Скопировать логин</span>
         </button>
-        <button class="auth-btn" id="btn-download-avatar" style="background:var(--in); color:var(--txt); margin-bottom: 10px; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="downloadContactAvatar()">
-            <span class="material-symbols-outlined">download</span> Скачать аватарку
-        </button>
         <button class="auth-btn" style="background:var(--in); color:var(--txt); margin-bottom: 10px; display:flex; align-items:center; justify-content:center; gap:10px;" id="btn-block-user" onclick="toggleBlockUser()">
             <span class="material-symbols-outlined">block</span> <span id="blockUserText">Заблокировать</span>
         </button>
@@ -1187,7 +1184,6 @@
         <button class="auth-btn" id="btn-pin-msg" style="background:var(--in); color:var(--txt); margin-bottom: 12px;" onclick="togglePinSelectedMsg()"><span class="material-symbols-outlined">keep</span> <span id="pin-msg-label">Закрепить</span></button>
         <button class="auth-btn" style="margin-bottom: 12px;" onclick="replySelectedMsg()"><span class="material-symbols-outlined">reply</span> Ответить</button>
         <button class="auth-btn" style="background:var(--in); color:var(--txt); margin-bottom: 12px;" onclick="openForwardModal()"><span class="material-symbols-outlined">forward</span> Переслать</button>
-        <button class="auth-btn" id="btn-download-msg" style="background:var(--in); color:var(--txt); margin-bottom: 12px; display:none;" onclick="downloadSelectedMsg()"><span class="material-symbols-outlined">download</span> Скачать</button>
         <button class="auth-btn" id="btn-del-msg" style="background:var(--red); color: white; margin-bottom: 12px;" onclick="deleteSelectedMsg()"><span class="material-symbols-outlined">delete</span> Удалить у всех</button>
         <button class="auth-btn" style="background:transparent; border: 1px solid var(--brd); color:var(--mut);" onclick="closeMsgMenu()">Отмена</button>
     </div>
@@ -1287,6 +1283,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
 <script>
+    // === Редирект на ПК-версию (десктоп) ===
+    (function () {
+        try {
+            var path = (location.pathname || '').toLowerCase();
+            if (path.indexOf('pc.html') !== -1 || path.indexOf('app.html') !== -1) return;
+            if (localStorage.getItem('Nexagram_ForceMobile') === '1') return;
+            var isDesktop = window.innerWidth >= 900 || (window.matchMedia && window.matchMedia('(min-width: 900px) and (pointer: fine)').matches);
+            if (isDesktop) {
+                var target = 'pc.html' + (location.search || '') + (location.hash || '');
+                location.replace(target);
+            }
+        } catch (e) {}
+    })();
+
     // === ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ УВЕДОМЛЕНИЙ В ПРИЛОЖЕНИИ ===
     function showToast(msg) {
         const toast = document.createElement('div');
@@ -2261,20 +2271,7 @@
     let redirectHandled = false; // <-- НОВАЯ ПЕРЕМЕННАЯ
     
     let db = { users: [], chats: [], stories: [], callLogs: [] };
-        // === Редирект на ПК-версию (десктоп) ===
-    (function () {
-        try {
-            var path = (location.pathname || '').toLowerCase();
-            if (path.indexOf('pc.html') !== -1 || path.indexOf('app.html') !== -1) return;
-            if (localStorage.getItem('Nexagram_ForceMobile') === '1') return;
-            var isDesktop = window.innerWidth >= 900 || (window.matchMedia && window.matchMedia('(min-width: 900px) and (pointer: fine)').matches);
-            if (isDesktop) {
-                location.replace('pc.html' + (location.search || '') + (location.hash || ''));
-            }
-        } catch (e) {}
-    })();
-
-let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady = false;
+    let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady = false;
     let mediaRecorder = null; let recordedChunks = []; let isRecordingVoice = false; let isRecordingVideo = false;
     let replyingTo = null; let forwardingMsg = null; let typingTimeout = null;
 
@@ -2344,15 +2341,6 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         try {
             const data = snapshot.val() || {};
             db.users = ensureArray(data.users).filter(u => u && typeof u === 'object').map(u => { u.friends = ensureArray(u.friends).filter(f => f); u.friendRequests = ensureArray(u.friendRequests).filter(f => f); return u; });
-            try {
-                (db.users || []).forEach(u => {
-                    if (!u || !u.id) return;
-                    const p = presenceMap[String(u.id)];
-                    if (p && p.state === 'online') u.lastSeen = 'online';
-                    else if (p && p.state === 'offline' && p.ts) u.lastSeen = p.ts;
-                });
-            } catch (_p) {}
-
             db.chats = ensureArray(data.chats).filter(c => c && typeof c === 'object').map(c => { 
                 c.msgs = ensureArray(c.msgs).filter(m => m && typeof m === 'object').map(m => { 
                     if (!m.reactions || typeof m.reactions !== 'object') m.reactions = {}; 
@@ -2459,15 +2447,7 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
                         if (activeChat.type === 'direct' && activeChat.u1 !== activeChat.u2) {
                             const otherId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
                             const other = db.users.find(u => u.id === otherId);
-                            if (other) { const hStatus = document.getElementById('h-status'); if (hStatus) {
-                            try {
-                                const oid = other && other.id ? String(other.id) : '';
-                                const p = presenceMap[oid];
-                                if (p && p.state === 'online') other = Object.assign({}, other, { lastSeen: 'online' });
-                            } catch (_) {}
-                            hStatus.textContent = getUserStatus(other);
-                            hStatus.style.color = (other && other.lastSeen === 'online') ? '#34c759' : 'var(--mut)';
-                        } }
+                            if (other) { const hStatus = document.getElementById('h-status'); if (hStatus) hStatus.textContent = getUserStatus(other); }
                         }
                     }
                 }
@@ -2770,143 +2750,41 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         } catch (e) { console.warn('notifyChatRecipients', e); }
     }
 
-
-    // ===== ONLINE STATUS (по userId, не по индексу массива) =====
-    let presenceMap = {};
-    let presenceGlobalRef = null;
-    let statusPollTimer = null;
-
     function setupPresence() {
-        if (!me || !me.id) return;
-        const myId = String(me.id);
-
+        if (!me) return;
+        const uIdx = db.users.findIndex(u => u.id === me.id);
+        if (uIdx === -1) return;
         if (presenceHeartbeat) { clearInterval(presenceHeartbeat); presenceHeartbeat = null; }
-        if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
-        if (connectedRef) { try { connectedRef.off(); } catch (_) {} }
-
-        const statusRef = rtdb.ref('/dg_status/' + myId);
-        const presenceRefLocal = rtdb.ref('/dg_presence/' + myId);
-
-        const writeOnline = () => {
-            try {
-                statusRef.set('online');
-                statusRef.onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
-                presenceRefLocal.set({ state: 'online', ts: Date.now() });
-                presenceRefLocal.onDisconnect().set({ state: 'offline', ts: firebase.database.ServerValue.TIMESTAMP });
-            } catch (e) { console.warn('[presence] write', e); }
-            me.lastSeen = 'online';
-            presenceMap[myId] = { state: 'online', ts: Date.now() };
-            const idx = (db.users || []).findIndex(u => u && String(u.id) === myId);
-            if (idx > -1) {
-                db.users[idx].lastSeen = 'online';
-                try { rtdb.ref('/dg_app_data/users/' + idx + '/lastSeen').set('online'); } catch (_) {}
-            }
-            console.log('[presence] ONLINE', myId);
-        };
-
-        const writeOffline = () => {
-            const ts = Date.now();
-            try {
-                statusRef.set(ts);
-                presenceRefLocal.set({ state: 'offline', ts: ts });
-            } catch (_) {}
-            me.lastSeen = ts;
-            presenceMap[myId] = { state: 'offline', ts: ts };
-            const idx = (db.users || []).findIndex(u => u && String(u.id) === myId);
-            if (idx > -1) {
-                db.users[idx].lastSeen = ts;
-                try { rtdb.ref('/dg_app_data/users/' + idx + '/lastSeen').set(ts); } catch (_) {}
-            }
-        };
-
+        if (connectedRef) connectedRef.off();
         connectedRef = rtdb.ref('.info/connected');
-        connectedRef.on('value', snap => {
-            if (snap.val() === true) writeOnline();
-        });
-
-        try { document.removeEventListener('visibilitychange', window._nexPresenceVis); } catch (_) {}
-        window._nexPresenceVis = () => {
-            if (document.visibilityState === 'visible') writeOnline();
-            // НЕ ставим offline при скрытии вкладки на мобиле — только onDisconnect
-            // иначе статус мигает «недавно» при каждом переключении
+        const goOnline = () => {
+            const idx = db.users.findIndex(u => u.id === me.id);
+            if (idx === -1) return;
+            presenceRef = rtdb.ref(`/dg_app_data/users/${idx}/lastSeen`);
+            presenceRef.onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+            presenceRef.set('online');
+            me.lastSeen = 'online';
+            if (db.users[idx]) db.users[idx].lastSeen = 'online';
         };
-        document.addEventListener('visibilitychange', window._nexPresenceVis);
-
-        presenceHeartbeat = setInterval(() => {
-            if (document.visibilityState === 'visible') writeOnline();
-        }, 15000);
-
-        writeOnline();
-        listenPresenceMap();
-
-        // UI опрос каждые 3 сек — статус всегда свежий
-        statusPollTimer = setInterval(() => {
-            try { refreshPresenceUI(); } catch (_) {}
-        }, 3000);
-    }
-
-    function listenPresenceMap() {
-        if (presenceGlobalRef) { try { presenceGlobalRef.off(); } catch (_) {} }
-
-        // простой путь /dg_status/{uid} = "online" | timestamp
-        presenceGlobalRef = rtdb.ref('/dg_status');
-        presenceGlobalRef.on('value', snap => {
-            const val = snap.val() || {};
-            Object.keys(val).forEach(uid => {
-                const v = val[uid];
-                if (v === 'online') {
-                    presenceMap[uid] = { state: 'online', ts: Date.now() };
-                } else {
-                    const n = Number(v);
-                    presenceMap[uid] = { state: 'offline', ts: (n && !isNaN(n)) ? n : Date.now() };
-                }
-            });
-            // подмешать в users
-            (db.users || []).forEach(u => {
-                if (!u || !u.id) return;
-                const p = presenceMap[String(u.id)];
-                if (!p) return;
-                if (p.state === 'online') u.lastSeen = 'online';
-                else if (p.ts) u.lastSeen = p.ts;
-            });
-            try { refreshPresenceUI(); } catch (_) {}
+        const goOffline = () => {
+            const idx = db.users.findIndex(u => u.id === me.id);
+            if (idx === -1) return;
+            const ts = Date.now();
+            rtdb.ref(`/dg_app_data/users/${idx}/lastSeen`).set(ts);
+            me.lastSeen = ts;
+            if (db.users[idx]) db.users[idx].lastSeen = ts;
+        };
+        connectedRef.on('value', snap => {
+            if (snap.val() === true) goOnline();
         });
-
-        // запасной /dg_presence
-        try {
-            rtdb.ref('/dg_presence').on('value', snap => {
-                const val = snap.val() || {};
-                Object.keys(val).forEach(uid => {
-                    const p = val[uid];
-                    if (!p) return;
-                    if (p === 'online' || (p.state === 'online')) {
-                        presenceMap[uid] = { state: 'online', ts: Date.now() };
-                    } else if (p.state === 'offline') {
-                        presenceMap[uid] = { state: 'offline', ts: p.ts || Date.now() };
-                    }
-                });
-                try { refreshPresenceUI(); } catch (_) {}
-            });
-        } catch (_) {}
-    }
-
-    function refreshPresenceUI() {
-        try {
-            if (me && activeChat && activeChat.type === 'direct') {
-                const oid = String(activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1);
-                let u = (db.users || []).find(x => x && String(x.id) === oid);
-                if (!u) u = { id: oid, lastSeen: null };
-                // presence важнее users
-                const p = presenceMap[oid];
-                if (p && p.state === 'online') u = Object.assign({}, u, { lastSeen: 'online' });
-                else if (p && p.state === 'offline' && p.ts) u = Object.assign({}, u, { lastSeen: p.ts });
-                const el = document.getElementById('h-status');
-                if (el) {
-                    el.textContent = getUserStatus(u);
-                    el.style.color = (p && p.state === 'online') ? '#34c759' : 'var(--mut)';
-                }
-            }
-        } catch (_) {}
+        presenceHeartbeat = setInterval(() => {
+            if (document.visibilityState === 'visible') goOnline();
+        }, 30000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') goOnline();
+            else goOffline();
+        });
+        goOnline();
     }
 
     function isBlockedByMe(uid) {
@@ -2922,50 +2800,39 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
     }
     function getUserStatus(user) {
         if (!user) return '';
-        const uid = user.id ? String(user.id) : '';
-        if (me && uid && uid === String(me.id)) return 'в сети';
-        try {
-            if (typeof hasBlockedMe === 'function' && hasBlockedMe(user.id)) return 'был(а) давно';
-        } catch (_) {}
-
-        // presenceMap — главный источник
-        try {
-            const p = presenceMap && uid && presenceMap[uid];
-            if (p && p.state === 'online') return 'в сети';
-        } catch (_) {}
-
+        if (me && user.id === me.id) return t('st_online');
+        if (hasBlockedMe(user.id)) return t('st_long_ago');
         let ls = user.lastSeen;
-        if (ls === 'online') return 'в сети';
+        if (ls === 'online') return t('st_online');
         if (ls && typeof ls === 'object' && ls.seconds != null) ls = Number(ls.seconds) * 1000;
-        if (ls == null || ls === '') {
-            // ещё раз presence offline ts
-            try {
-                const p = presenceMap && uid && presenceMap[uid];
-                if (p && p.ts) ls = p.ts;
-            } catch (_) {}
-        }
-        if (ls == null || ls === '') return 'был(а) недавно';
+        if (ls == null || ls === '') return t('st_recently');
         if (typeof ls === 'string' && ls !== 'online') {
             const n = Number(ls);
             if (!isNaN(n) && n > 0) ls = n;
-            else return 'был(а) недавно';
+            else return t('st_recently');
         }
         const ts = Number(ls);
-        if (!ts || isNaN(ts)) return 'был(а) недавно';
+        if (!ts || isNaN(ts)) return t('st_recently');
         const diff = Date.now() - ts;
-        if (isNaN(diff) || diff < 0) return 'был(а) недавно';
-        if (diff < 60 * 1000) return 'в сети';
+        if (isNaN(diff) || diff < 0) return t('st_recently');
+        // только что / в сети — до 1 мин
+        if (diff < 60 * 1000) return t('st_online');
+        // минуты
         if (diff < 60 * 60 * 1000) {
             const m = Math.max(1, Math.floor(diff / 60000));
-            return 'был(а) ' + m + ' мин. назад';
+            return t('st_min').replace('{n}', String(m));
         }
+        // часы
         if (diff < 24 * 60 * 60 * 1000) {
             const h = Math.max(1, Math.floor(diff / 3600000));
-            return 'был(а) ' + h + ' ч. назад';
+            return t('st_hour').replace('{n}', String(h));
         }
-        if (diff < 2 * 24 * 60 * 60 * 1000) return 'был(а) вчера';
-        if (diff < 7 * 24 * 60 * 60 * 1000) return 'был(а) недавно';
-        return 'был(а) давно';
+        // 1–2 дня
+        if (diff < 2 * 24 * 60 * 60 * 1000) return t('st_yesterday');
+        // 2–7 дней
+        if (diff < 7 * 24 * 60 * 60 * 1000) return t('st_recently');
+        // > 7 дней
+        return t('st_long_ago');
     }
 
 
@@ -3071,95 +2938,37 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
     }
 
     function listenForIncomingCalls() {
-        if (!me || !me.id) return;
-        const myId = String(me.id);
-        console.log('[call] listen start', myId);
-
-        const handleIncoming = (callId, meta) => {
-            if (!callId) return;
-            callId = String(callId);
-            if (currentCallId && String(currentCallId) === callId) return;
-            console.log('[call] handleIncoming', callId, meta);
-
-            const openUI = (callerId, isVideo) => {
-                try { showToast('📞 Входящий звонок…'); } catch (_) {}
-                showIncomingCallUI(callerId, callId, !!isVideo);
-            };
-
-            if (meta && meta.caller) {
-                openUI(meta.caller, meta.isVideo);
-                return;
-            }
-            const tryLoad = (attempt) => {
-                rtdb.ref('/dg_calls/' + callId).once('value', callSnap => {
-                    const callData = callSnap.val();
-                    if (!callData) {
-                        if (attempt < 12) setTimeout(() => tryLoad(attempt + 1), 200);
-                        else console.warn('[call] no data for', callId);
-                        return;
-                    }
-                    if (callData.status && callData.status !== 'ringing') return;
-                    if (callData.caller && String(callData.caller) === myId) return;
-                    openUI(callData.caller, callData.isVideo);
-                });
-            };
-            tryLoad(0);
-        };
-
-        // канал 1
-        try { rtdb.ref('/dg_user_calls/' + myId).off(); } catch (_) {}
-        rtdb.ref('/dg_user_calls/' + myId).on('value', snap => {
-            const v = snap.val();
-            console.log('[call] dg_user_calls', v);
-            if (v) handleIncoming(v, null);
-        });
-
-        // канал 2 — полный объект (надёжнее)
-        try { rtdb.ref('/dg_incoming/' + myId).off(); } catch (_) {}
-        rtdb.ref('/dg_incoming/' + myId).on('value', snap => {
-            const d = snap.val();
-            console.log('[call] dg_incoming', d);
-            if (d && d.callId && (d.status === 'ringing' || !d.status)) {
-                handleIncoming(d.callId, d);
-            }
+        if (!me) return;
+        rtdb.ref('/dg_user_calls/' + me.id).on('value', snap => {
+            const incomingCallId = snap.val();
+            if (incomingCallId) {
+                rtdb.ref('/dg_calls/' + incomingCallId).once('value', callSnap => { const callData = callSnap.val(); if (callData && callData.status === 'ringing' && callData.caller !== me.id) { showIncomingCallUI(callData.caller, incomingCallId, callData.isVideo); } });
+            } else { if (currentCallId && !peerConnection) { hideCallUI(); } }
         });
     }
-
 
     function showIncomingCallUI(callerId, callId, isVideoCall) {
-        try {
-            currentCallId = callId;
-            currentCallIsVideo = !!isVideoCall;
-            const caller = (db.users || []).find(u => u && String(u.id) === String(callerId));
-            const name = caller ? (caller.name || caller.login || 'Абонент') : 'Входящий вызов';
-            const avType = caller ? (caller.avatarType || 'emoji') : 'emoji';
-            const avVal = caller ? (caller.avatarValue || '📞') : '📞';
-            try { applyCallBackground(); } catch (_) {}
-            const avEl = document.getElementById('callAvatar');
-            if (avEl) avEl.innerHTML = getAvatarHtml(avType, avVal);
-            const n1 = document.getElementById('callName'); if (n1) n1.textContent = name;
-            const n2 = document.getElementById('callNameSmall'); if (n2) n2.textContent = name;
-            const min = document.getElementById('minCallInfo'); if (min) min.textContent = name + ' · входящий';
-            try { setCallStatusText(typeof t === 'function' ? t('call_incoming') : 'Входящий вызов'); } catch (_) {}
-            isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
-            const overlay = document.getElementById('callOverlay');
-            if (overlay) { overlay.classList.remove('closing'); overlay.classList.add('active'); }
-            const minBar = document.getElementById('minimizedCallBar'); if (minBar) minBar.style.display = 'none';
-            const center = document.getElementById('callCenterArea'); if (center) center.style.display = 'flex';
-            const top = document.getElementById('callTopCenter'); if (top) top.style.display = 'none';
-            try { renderCallControls(true); } catch (_) { try { renderCallControls(); } catch (_) {} }
-            try { if (typeof startRingtone === 'function') startRingtone(false); } catch (_) {}
-            try { unlockAudioContext(); playNotifSound(); } catch (_) {}
-            try {
-                showAppNotification('Входящий вызов', name + (isVideoCall ? ' (видео)' : ''), { tag: 'call-' + callId, requireInteraction: true });
-            } catch (_) {}
-            console.log('[call] incoming UI', callId, callerId, name);
-        } catch (e) {
-            console.error('[call] showIncoming fail', e);
-            try { alert('Входящий звонок!'); } catch (_) {}
+        currentCallId = callId; currentCallIsVideo = isVideoCall; const caller = db.users.find(u => u.id === callerId);
+        applyCallBackground(); 
+        document.getElementById('callAvatar').innerHTML = getAvatarHtml(caller.avatarType, caller.avatarValue); document.getElementById('callName').textContent = caller.name; document.getElementById('callNameSmall').textContent = caller.name; document.getElementById('minCallInfo').textContent = `${caller.name} · Ожидание...`;
+        setCallStatusText(t('call_incoming')); isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
+        const overlay = document.getElementById('callOverlay'); 
+        overlay.classList.remove('closing');
+        overlay.classList.add('active'); 
+        document.getElementById('minimizedCallBar').style.display = 'none';
+        document.getElementById('callCenterArea').style.display = 'flex'; document.getElementById('callTopCenter').style.display = 'none';
+        document.getElementById('callControls').innerHTML = `
+            <div class="call-btn-group"><button class="call-btn-circle" style="background:#30d158;color:#fff;" onclick="acceptCall(${currentCallIsVideo})"><span class="material-symbols-outlined">${currentCallIsVideo ? 'videocam' : 'call'}</span></button><div class="call-btn-label">${t('call_accept')}</div></div>
+            <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">${t('call_decline')}</div></div>
+        `;
+        document.getElementById('localVideo').style.display = 'none'; document.getElementById('remoteVideo').classList.remove('active-video');
+        
+        startRingtone(false);
+        
+        if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+            showAppNotification('Входящий вызов', `Звонит ${caller.name}`, { tag: 'call-' + callId, requireInteraction: true });
         }
     }
-
 
     function minimizeCall() { 
         document.getElementById('callOverlay').classList.remove('active');
@@ -3315,25 +3124,7 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
                 offer: { type: offer.type, sdp: offer.sdp },
                 status: 'ringing', isVideo: isVideo
             });
-            const tid = String(targetUserId);
-            const incomingPayload = {
-                callId: currentCallId,
-                caller: me.id,
-                isVideo: !!isVideo,
-                status: 'ringing',
-                at: Date.now()
-            };
-            await rtdb.ref('/dg_user_calls/' + tid).set(currentCallId);
-            await rtdb.ref('/dg_incoming/' + tid).set(incomingPayload);
-            setTimeout(() => {
-                rtdb.ref('/dg_user_calls/' + tid).set(currentCallId).catch(() => {});
-                rtdb.ref('/dg_incoming/' + tid).set(incomingPayload).catch(() => {});
-            }, 500);
-            setTimeout(() => {
-                rtdb.ref('/dg_user_calls/' + tid).set(currentCallId).catch(() => {});
-                rtdb.ref('/dg_incoming/' + tid).set(incomingPayload).catch(() => {});
-            }, 1500);
-            console.log('[call] SIGNALLED to', tid, currentCallId);
+            await rtdb.ref(`/dg_user_calls/${targetUserId}`).set(currentCallId);
             try { notifyUserPush(targetUserId, 'Входящий вызов', (me.name || me.login || 'Nexagram') + (isVideo ? ' (видео)' : '')); } catch (_) {}
 
             // Таймаут ожидания ответа — 20 секунд
@@ -3463,10 +3254,7 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
             const snap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value'); const data = snap.val();
             if (data) {
                 const isRinging = data.status === 'ringing'; const isCaller = data.caller === me.id; const endStatus = isRinging ? (isCaller ? 'missed' : 'declined') : 'ended';
-                await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: endStatus }); await rtdb.ref('/dg_user_calls/' + data.callee).remove();
-                await rtdb.ref('/dg_user_calls/' + data.caller).remove();
-                try { await rtdb.ref('/dg_incoming/' + data.callee).remove(); } catch (_) {}
-                try { await rtdb.ref('/dg_incoming/' + data.caller).remove(); } catch (_) {}
+                await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: endStatus }); await rtdb.ref(`/dg_user_calls/${data.callee}`).remove(); await rtdb.ref(`/dg_user_calls/${data.caller}`).remove();
                 if (isCaller) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: endStatus, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
             }
         }
@@ -4483,48 +4271,6 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         if (activeChat.admins && activeChat.admins.includes(me.id)) return true;
         return false;
     }
-
-    function downloadSelectedMsg() {
-        try {
-            const msgs = getFilteredMsgs();
-            const msg = msgs[selectedMsgIdxForMenu];
-            if (!msg) return showToast('Нет сообщения');
-            const url = msg.url || msg.fileUrl || msg.src;
-            if (!url) return showToast('Нечего скачивать');
-            let name = msg.name || msg.fileName || ('nexagram_' + (msg.type || 'file') + '_' + Date.now());
-            if ((msg.type === 'voice' || msg.type === 'audio') && name.indexOf('.') < 0) name += '.webm';
-            if (msg.type === 'image' && name.indexOf('.') < 0) name += '.jpg';
-            if ((msg.type === 'video' || msg.type === 'video_circle') && name.indexOf('.') < 0) name += '.mp4';
-            const a = document.createElement('a');
-            a.href = url; a.download = name; a.target = '_blank'; a.rel = 'noopener';
-            document.body.appendChild(a); a.click(); a.remove();
-            showToast('Скачивание…');
-            closeMsgMenu();
-        } catch (e) { showToast('Не удалось скачать'); }
-    }
-
-    async function downloadContactAvatar() {
-        try {
-            let user = null;
-            if (typeof profileMenuTargetUserId !== 'undefined' && profileMenuTargetUserId) {
-                user = (db.users || []).find(u => u && u.id === profileMenuTargetUserId);
-            } else if (activeChat && activeChat.type === 'direct') {
-                const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
-                user = (db.users || []).find(u => u && u.id === oid);
-            }
-            if (!user) return showToast('Нет контакта');
-            let url = null;
-            if (user.avatarType === 'image' || user.avatarType === 'url') url = user.avatarValue;
-            if (!url || String(url).indexOf('http') !== 0) return showToast('Нет фото-аватарки');
-            const a = document.createElement('a');
-            a.href = url; a.download = (user.login || user.name || 'avatar') + '.jpg';
-            a.target = '_blank'; a.rel = 'noopener';
-            document.body.appendChild(a); a.click(); a.remove();
-            showToast('Скачивание аватарки…');
-            closeProfileMenu();
-        } catch (e) { showToast('Не удалось скачать'); }
-    }
-
     function openMsgMenu(e, idx, msgUid) {
         e.preventDefault(); selectedMsgIdxForMenu = idx;
         const btnDel = document.getElementById('btn-del-msg');
@@ -4546,12 +4292,6 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         // Редактирование: только своё текстовое (в канале тоже только своё + админ может писать)
         if (msgUid === me.id && (!targetMsg.type || targetMsg.type === 'text')) btnEdit.style.display = 'block';
         else btnEdit.style.display = 'none';
-        const btnDl = document.getElementById('btn-download-msg');
-        if (btnDl) {
-            const canDl = targetMsg && targetMsg.url && ['image','video','video_circle','voice','audio','file'].indexOf(targetMsg.type) >= 0;
-            btnDl.style.display = canDl ? 'block' : 'none';
-        }
-
 
         // Закреп: в канале и группе — только админ; в личке — можно обоим (как обычно)
         let canPin = false;
@@ -5194,177 +4934,19 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
     }
 
     function toggleVoice() {
-        if (!activeChat) return;
-        const btn = document.getElementById('btn-voice');
-        const inputEl = document.getElementById('m-in');
-
-        const hideWave = () => {
-            try { if (window._voiceAnalyserRAF) cancelAnimationFrame(window._voiceAnalyserRAF); } catch (_) {}
-            window._voiceAnalyserRAF = null;
-            try {
-                if (window._voiceAudioCtx) { window._voiceAudioCtx.close(); window._voiceAudioCtx = null; }
-            } catch (_) {}
-            const w = document.getElementById('voice-wave-ui');
-            if (w) w.style.display = 'none';
-            if (inputEl) inputEl.style.display = '';
-            if (btn) btn.classList.remove('recording-pulse');
-        };
-
-        if (isRecordingVoice) {
-            try {
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-            } catch (_) {}
-            isRecordingVoice = false;
-            hideWave();
-            try {
-                if (window._voiceRecStream) {
-                    window._voiceRecStream.getTracks().forEach(tr => tr.stop());
-                    window._voiceRecStream = null;
-                }
-            } catch (_) {}
-            return;
+        if (!activeChat) return; const btn = document.getElementById('btn-voice');
+        if (isRecordingVoice) { mediaRecorder.stop(); isRecordingVoice = false; btn.classList.remove('recording-pulse'); } 
+        else {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                    isRecordingVoice = true; btn.classList.add('recording-pulse');
+                    let options = undefined; if (MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/webm' }; else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
+                    mediaRecorder = new MediaRecorder(stream, options); recordedChunks = []; mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+                    mediaRecorder.onstop = async () => { const finalMime = mediaRecorder.mimeType || 'audio/mp4'; const ext = finalMime.includes('mp4') ? 'mp4' : 'webm'; const blob = new Blob(recordedChunks, { type: finalMime }); const file = new File([blob], 'voice.' + ext, { type: finalMime }); const url = await uploadToCloud(file); if (url) { const chatIndex = ensureChatInDb(); if (chatIndex > -1) { const msgObj = { uid: me.id, type: 'voice', url: url, time: Date.now(), reactions: {} }; if (replyingTo) { msgObj.reply = getSafeReplyObj(replyingTo); cancelReply(); } if (!db.chats[chatIndex].msgs) db.chats[chatIndex].msgs = []; db.chats[chatIndex].msgs.push(msgObj); rtdb.ref(`/dg_app_data/chats/${chatIndex}/msgs`).set(db.chats[chatIndex].msgs); if (activeChat.id === db.chats[chatIndex].id) renderMsgs(); } } stream.getTracks().forEach(t => t.stop()); }; mediaRecorder.start();
+                }).catch(() => showToast("Нет доступа к микрофону"));
+            } else { showToast("Браузер не поддерживает запись голоса"); }
         }
-
-        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-            return showToast('Микрофон недоступен');
-        }
-
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            isRecordingVoice = true;
-            window._voiceRecStream = stream;
-            if (btn) btn.classList.add('recording-pulse');
-
-            // ===== полоска-волна вместо поля ввода =====
-            let wave = document.getElementById('voice-wave-ui');
-            if (!wave) {
-                wave = document.createElement('div');
-                wave.id = 'voice-wave-ui';
-                wave.setAttribute('aria-label', 'Запись…');
-                if (inputEl && inputEl.parentNode) {
-                    inputEl.parentNode.insertBefore(wave, inputEl);
-                } else if (btn && btn.parentNode) {
-                    btn.parentNode.insertBefore(wave, btn);
-                }
-            }
-            wave.style.cssText = [
-                'display:flex',
-                'align-items:center',
-                'justify-content:center',
-                'gap:3px',
-                'height:40px',
-                'flex:1',
-                'min-width:80px',
-                'padding:0 12px',
-                'margin:0 4px',
-                'background:var(--in)',
-                'border-radius:20px',
-                'border:1px solid var(--p)',
-                'box-sizing:border-box'
-            ].join(';');
-            if (inputEl) inputEl.style.display = 'none';
-            wave.style.display = 'flex';
-            wave.innerHTML = '';
-
-            const bars = [];
-            for (let i = 0; i < 20; i++) {
-                const b = document.createElement('div');
-                b.style.cssText = 'width:3px;height:6px;border-radius:2px;background:var(--p);transition:height 0.06s ease';
-                wave.appendChild(b);
-                bars.push(b);
-            }
-
-            try {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                const actx = new AC();
-                window._voiceAudioCtx = actx;
-                if (actx.state === 'suspended') actx.resume();
-                const srcNode = actx.createMediaStreamSource(stream);
-                const analyser = actx.createAnalyser();
-                analyser.fftSize = 256;
-                analyser.smoothingTimeConstant = 0.4;
-                srcNode.connect(analyser);
-                const dataArr = new Uint8Array(analyser.fftSize);
-
-                const tickWave = () => {
-                    if (!isRecordingVoice) return;
-                    analyser.getByteTimeDomainData(dataArr);
-                    const step = Math.floor(dataArr.length / bars.length);
-                    for (let i = 0; i < bars.length; i++) {
-                        let sum = 0;
-                        const start = i * step;
-                        for (let j = 0; j < step; j++) {
-                            const v = dataArr[start + j] - 128;
-                            sum += v * v;
-                        }
-                        const rms = Math.sqrt(sum / Math.max(1, step));
-                        const h = Math.max(4, Math.min(32, 4 + rms * 1.2));
-                        bars[i].style.height = h + 'px';
-                    }
-                    window._voiceAnalyserRAF = requestAnimationFrame(tickWave);
-                };
-                tickWave();
-            } catch (e) {
-                console.warn('voice wave', e);
-                // хоть анимация-заглушка, чтобы было видно, что запись идёт
-                let k = 0;
-                const fake = () => {
-                    if (!isRecordingVoice) return;
-                    for (let i = 0; i < bars.length; i++) {
-                        const h = 6 + Math.abs(Math.sin(k / 5 + i / 3)) * 18;
-                        bars[i].style.height = h + 'px';
-                    }
-                    k++;
-                    window._voiceAnalyserRAF = requestAnimationFrame(fake);
-                };
-                fake();
-            }
-
-            let options = undefined;
-            if (typeof MediaRecorder !== 'undefined') {
-                if (MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/webm' };
-                else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
-            }
-            mediaRecorder = new MediaRecorder(stream, options);
-            recordedChunks = [];
-            mediaRecorder.ondataavailable = e => {
-                if (e.data && e.data.size) recordedChunks.push(e.data);
-            };
-            mediaRecorder.onstop = async () => {
-                isRecordingVoice = false;
-                hideWave();
-                try { stream.getTracks().forEach(tr => tr.stop()); } catch (_) {}
-                window._voiceRecStream = null;
-                const finalMime = (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm';
-                const ext = finalMime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-                const blob = new Blob(recordedChunks, { type: finalMime });
-                if (!blob.size) return showToast('Пустая запись');
-                try {
-                    const file = new File([blob], 'voice.' + ext, { type: finalMime });
-                    const url = await uploadToCloud(file);
-                    if (!url) return showToast('Не удалось загрузить');
-                    const chatIndex = ensureChatInDb();
-                    if (chatIndex > -1) {
-                        const msgObj = { uid: me.id, type: 'voice', url: url, time: Date.now(), reactions: {} };
-                        if (!db.chats[chatIndex].msgs) db.chats[chatIndex].msgs = [];
-                        db.chats[chatIndex].msgs.push(msgObj);
-                        await rtdb.ref('/dg_app_data/chats/' + chatIndex + '/msgs').set(db.chats[chatIndex].msgs);
-                        try { notifyChatRecipients(db.chats[chatIndex], msgObj); } catch (_) {}
-                        try { renderMsgs(false); } catch (_) {}
-                    }
-                } catch (err) {
-                    console.warn(err);
-                    showToast('Ошибка отправки голосового');
-                }
-            };
-            mediaRecorder.start();
-            showToast('Запись… нажми микрофон ещё раз');
-        }).catch(err => {
-            isRecordingVoice = false;
-            console.warn(err);
-            showToast('Нет доступа к микрофону');
-        });
     }
-
 
     function toggleVideoCircle() {
         if (!activeChat) return; const btn = document.getElementById('btn-circle'); const previewContainer = document.getElementById('video-circle-preview-container'); const previewVideo = document.getElementById('video-circle-preview');
