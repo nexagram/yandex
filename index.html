@@ -2297,13 +2297,9 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun.cloudflare.com:3478' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ],
-        iceCandidatePoolSize: 10
+            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+            { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }
+        ] 
     };
 
     function isSuperAdmin(user) { if (!user) return false; return ['helper', 'demo', 'admin'].includes(user.login.toLowerCase()) || user.isGlobalAdmin; }
@@ -3039,29 +3035,15 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
     function clearGlobalWallpaper() { if(confirm('Сбросить обои чатов на стандартные?')) { me.wallpaper = null; const uIdx = db.users.findIndex(u => u.id === me.id); if (uIdx > -1) rtdb.ref(`/dg_app_data/users/${uIdx}/wallpaper`).remove(); showToast('Обои сброшены.'); } }
 
     // ================= ЗВОНКИ И АНИМАЦИИ =================
-    function setCallStatusText(text) {
-        try {
-            const a = document.getElementById('callStatus');
-            const b = document.getElementById('callStatusSmall');
-            if (a) a.textContent = text;
-            if (b) b.textContent = text;
-        } catch (_) {}
-    }
+    function setCallStatusText(text) { document.getElementById('callStatus').textContent = text; document.getElementById('callStatusSmall').textContent = text; }
     function applyCallBackground() {
         const overlay = document.getElementById('callOverlay');
         if (!overlay) return;
-        if (me && me.wallpaper) {
-            overlay.style.background = `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('${escapeHtml(me.wallpaper)}')`;
-            overlay.style.backgroundSize = 'cover';
-            overlay.style.backgroundPosition = 'center';
-            overlay.style.animation = 'none';
-            overlay.style.backgroundBlendMode = 'normal';
-        } else {
-            overlay.style.background = `linear-gradient(135deg, rgba(0,0,0,0.1), rgba(255,255,255,0.25), rgba(0,0,0,0.4)), var(--p)`;
-            overlay.style.backgroundSize = '200% 200%';
-            overlay.style.backgroundBlendMode = 'hard-light';
-            overlay.style.animation = 'iridescentGradient 8s ease infinite';
-        }
+        // Тёмный экран как в Max
+        overlay.style.background = '#0a0a0c';
+        overlay.style.backgroundImage = 'none';
+        overlay.style.animation = 'none';
+        overlay.style.backgroundBlendMode = 'normal';
     }
 
     function renderCallControls() {
@@ -3074,24 +3056,194 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         }
         if (!currentCallIsVideo) {
             controls.innerHTML = `
-                <div class="call-btn-group"><button class="call-btn-circle ${isSpeakerOn ? 'white' : 'translucent'}" onclick="toggleCallSpeaker()"><span class="material-symbols-outlined">speaker</span></button><div class="call-btn-label">Динамик</div></div>
-                <div class="call-btn-group"><button class="call-btn-circle ${isCallMicMuted ? 'white' : 'translucent'}" onclick="toggleCallMic()"><span class="material-symbols-outlined">${isCallMicMuted ? 'mic_off' : 'mic'}</span></button><div class="call-btn-label">${isCallMicMuted ? 'Вкл. звук' : 'Выкл. звук'}</div></div>
-                <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">Завершить</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle ${isSpeakerOn ? 'white' : 'translucent'}" onclick="toggleCallSpeaker()"><span class="material-symbols-outlined">volume_up</span></button><div class="call-btn-label">${t('call_speaker')}</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle ${isCallMicMuted ? 'white' : 'translucent'}" onclick="toggleCallMic()"><span class="material-symbols-outlined">${isCallMicMuted ? 'mic_off' : 'mic'}</span></button><div class="call-btn-label">${isCallMicMuted ? t('call_unmute') : t('call_mute')}</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">${t('call_end')}</div></div>
             `;
         } else {
             controls.innerHTML = `
-                <div class="call-btn-group"><button class="call-btn-circle white" onclick="flipCamera()"><span class="material-symbols-outlined">flip_camera_ios</span></button><div class="call-btn-label">Повернуть</div></div>
-                <div class="call-btn-group"><button class="call-btn-circle ${isCallCamOff ? 'white' : 'dark'}" onclick="toggleCallCam(false)"><span class="material-symbols-outlined">${isCallCamOff ? 'videocam_off' : 'videocam'}</span></button><div class="call-btn-label">${isCallCamOff ? 'Вкл. видео' : 'Выкл. видео'}</div></div>
-                <div class="call-btn-group"><button class="call-btn-circle ${isCallMicMuted ? 'white' : 'dark'}" onclick="toggleCallMic()"><span class="material-symbols-outlined">${isCallMicMuted ? 'mic_off' : 'mic'}</span></button><div class="call-btn-label">${isCallMicMuted ? 'Вкл. звук' : 'Выкл. звук'}</div></div>
-                <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">Завершить</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle white" onclick="flipCamera()"><span class="material-symbols-outlined">flip_camera_ios</span></button><div class="call-btn-label">${t('call_flip')}</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle ${isCallCamOff ? 'white' : 'dark'}" onclick="toggleCallCam(false)"><span class="material-symbols-outlined">${isCallCamOff ? 'videocam_off' : 'videocam'}</span></button><div class="call-btn-label">${isCallCamOff ? t('call_video_on') : t('call_video_off')}</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle ${isCallMicMuted ? 'white' : 'dark'}" onclick="toggleCallMic()"><span class="material-symbols-outlined">${isCallMicMuted ? 'mic_off' : 'mic'}</span></button><div class="call-btn-label">${isCallMicMuted ? t('call_unmute') : t('call_mute')}</div></div>
+                <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">${t('call_end')}</div></div>
             `;
         }
     }
 
-    let pendingIceCandidates = [];
-    let _callListenAttached = false;
-    let _incomingWatchers = [];
+    function listenForIncomingCalls() {
+        if (!me || !me.id) return;
+        const myId = String(me.id);
+        console.log('[call] listen start', myId);
 
+        const handleIncoming = (callId, meta) => {
+            if (!callId) return;
+            callId = String(callId);
+            if (currentCallId && String(currentCallId) === callId) return;
+            console.log('[call] handleIncoming', callId, meta);
+
+            const openUI = (callerId, isVideo) => {
+                try { showToast('📞 Входящий звонок…'); } catch (_) {}
+                showIncomingCallUI(callerId, callId, !!isVideo);
+            };
+
+            if (meta && meta.caller) {
+                openUI(meta.caller, meta.isVideo);
+                return;
+            }
+            const tryLoad = (attempt) => {
+                rtdb.ref('/dg_calls/' + callId).once('value', callSnap => {
+                    const callData = callSnap.val();
+                    if (!callData) {
+                        if (attempt < 12) setTimeout(() => tryLoad(attempt + 1), 200);
+                        else console.warn('[call] no data for', callId);
+                        return;
+                    }
+                    if (callData.status && callData.status !== 'ringing') return;
+                    if (callData.caller && String(callData.caller) === myId) return;
+                    openUI(callData.caller, callData.isVideo);
+                });
+            };
+            tryLoad(0);
+        };
+
+        // канал 1
+        try { rtdb.ref('/dg_user_calls/' + myId).off(); } catch (_) {}
+        rtdb.ref('/dg_user_calls/' + myId).on('value', snap => {
+            const v = snap.val();
+            console.log('[call] dg_user_calls', v);
+            if (v) handleIncoming(v, null);
+        });
+
+        // канал 2 — полный объект (надёжнее)
+        try { rtdb.ref('/dg_incoming/' + myId).off(); } catch (_) {}
+        rtdb.ref('/dg_incoming/' + myId).on('value', snap => {
+            const d = snap.val();
+            console.log('[call] dg_incoming', d);
+            if (d && d.callId && (d.status === 'ringing' || !d.status)) {
+                handleIncoming(d.callId, d);
+            }
+        });
+    }
+
+
+    function showIncomingCallUI(callerId, callId, isVideoCall) {
+        try {
+            currentCallId = callId;
+            currentCallIsVideo = !!isVideoCall;
+            const caller = (db.users || []).find(u => u && String(u.id) === String(callerId));
+            const name = caller ? (caller.name || caller.login || 'Абонент') : 'Входящий вызов';
+            const avType = caller ? (caller.avatarType || 'emoji') : 'emoji';
+            const avVal = caller ? (caller.avatarValue || '📞') : '📞';
+            try { applyCallBackground(); } catch (_) {}
+            const avEl = document.getElementById('callAvatar');
+            if (avEl) avEl.innerHTML = getAvatarHtml(avType, avVal);
+            const n1 = document.getElementById('callName'); if (n1) n1.textContent = name;
+            const n2 = document.getElementById('callNameSmall'); if (n2) n2.textContent = name;
+            const min = document.getElementById('minCallInfo'); if (min) min.textContent = name + ' · входящий';
+            try { setCallStatusText(typeof t === 'function' ? t('call_incoming') : 'Входящий вызов'); } catch (_) {}
+            isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
+            const overlay = document.getElementById('callOverlay');
+            if (overlay) { overlay.classList.remove('closing'); overlay.classList.add('active'); }
+            const minBar = document.getElementById('minimizedCallBar'); if (minBar) minBar.style.display = 'none';
+            const center = document.getElementById('callCenterArea'); if (center) center.style.display = 'flex';
+            const top = document.getElementById('callTopCenter'); if (top) top.style.display = 'none';
+            try { renderCallControls(true); } catch (_) { try { renderCallControls(); } catch (_) {} }
+            try { if (typeof startRingtone === 'function') startRingtone(false); } catch (_) {}
+            try { unlockAudioContext(); playNotifSound(); } catch (_) {}
+            try {
+                showAppNotification('Входящий вызов', name + (isVideoCall ? ' (видео)' : ''), { tag: 'call-' + callId, requireInteraction: true });
+            } catch (_) {}
+            console.log('[call] incoming UI', callId, callerId, name);
+        } catch (e) {
+            console.error('[call] showIncoming fail', e);
+            try { alert('Входящий звонок!'); } catch (_) {}
+        }
+    }
+
+
+    function minimizeCall() { 
+        document.getElementById('callOverlay').classList.remove('active');
+        setTimeout(() => { document.getElementById('minimizedCallBar').style.display = 'flex'; }, 300);
+    }
+    function expandCall() { document.getElementById('callOverlay').classList.add('active'); document.getElementById('minimizedCallBar').style.display = 'none'; }
+    function hideCallUI() {
+        const overlay = document.getElementById('callOverlay'); overlay.classList.remove('active'); overlay.classList.add('closing'); document.getElementById('minimizedCallBar').style.display = 'none';
+        setTimeout(() => { overlay.classList.remove('closing'); document.getElementById('localVideo').style.display = 'none'; document.getElementById('remoteVideo').classList.remove('active-video'); document.getElementById('remoteVideo').srcObject = null; document.getElementById('callTopCenter').style.display = 'none'; document.getElementById('callCenterArea').style.display = 'flex'; }, 400);
+        stopAllRingtones();
+    }
+
+    function renderCalls() {
+        if (!me) return; const container = document.getElementById('calls-list'); const myCalls = db.callLogs.filter(c => c.caller === me.id || c.callee === me.id).sort((a, b) => b.time - a.time);
+        if (myCalls.length === 0) { container.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined" style="font-size: 48px;">phone</span><br>Здесь будут отображаться<br>ваши звонки</div>'; return; }
+        container.innerHTML = myCalls.map(c => {
+            const isIncoming = c.callee === me.id; const otherId = isIncoming ? c.caller : c.callee; const other = db.users.find(u => u.id === otherId); if(!other) return '';
+            let icon = ''; let color = 'var(--mut)';
+            if (c.status === 'missed') { icon = isIncoming ? 'call_received' : 'call_made'; color = 'var(--red)'; } else if (c.status === 'declined') { icon = 'call_end'; color = 'var(--red)'; } else { icon = isIncoming ? 'call_received' : 'call_made'; color = isIncoming ? 'var(--p)' : 'var(--online)'; }
+            const timeStr = new Date(c.time).toLocaleString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); const durStr = c.duration ? ` • ${Math.floor(c.duration/60)}:${(c.duration%60).toString().padStart(2,'0')}` : '';
+            return `<div class="list-item" onclick="startChat('${other.id}')"><div class="av-sm">${getAvatarHtml(other.avatarType, other.avatarValue)}</div><div class="list-info"><div class="list-name" style="color:${c.status==='missed'&&isIncoming ? 'var(--red)' : 'var(--txt)'}">${escapeHtml(other.name)}</div><div class="list-preview" style="color: ${color}"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">${icon}</span> ${c.isVideo ? 'Видеозвонок' : 'Аудиозвонок'} ${durStr}<span style="color:var(--mut); margin-left:6px; font-weight:normal;">${timeStr}</span></div></div><button class="icon-btn" style="color:var(--p)" onclick="event.stopPropagation(); startChat('${other.id}'); setTimeout(()=>initiateCall(${c.isVideo}), 50);"><span class="material-symbols-outlined">call</span></button></div>`;
+        }).join('');
+    }
+
+    function clearCallHistory() {
+        if (!me) return;
+        if (!confirm('Очистить весь журнал вызовов? Это действие нельзя отменить.')) return;
+        db.callLogs = db.callLogs.filter(c => c.caller !== me.id && c.callee !== me.id);
+        rtdb.ref('/dg_app_data/callLogs').set(db.callLogs);
+        renderCalls();
+        showToast('Журнал вызовов очищен');
+    }
+
+    async function acquireCallMedia(isVideo) {
+        const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraints,
+            video: isVideo ? { facingMode: currentFacingMode || 'user' } : false
+        });
+        if (isVideo) {
+            const localVid = document.getElementById('localVideo');
+            if (localVid) {
+                localVid.srcObject = stream;
+                localVid.style.display = 'block';
+                localVid.style.transform = 'scaleX(-1)';
+            }
+        }
+        return stream;
+    }
+
+    async function attachLocalMediaToPeer(stream) {
+        if (!peerConnection || !stream) return;
+        for (const track of stream.getTracks()) {
+            // Ищем sender нужного kind, в т.ч. с track === null (после addTransceiver)
+            let sender = peerConnection.getSenders().find(s => s.track && s.track.kind === track.kind);
+            if (!sender) {
+                const tr = peerConnection.getTransceivers().find(tr => {
+                    if (tr.sender.track && tr.sender.track.kind === track.kind) return true;
+                    if (!tr.sender.track) {
+                        const rk = tr.receiver && tr.receiver.track && tr.receiver.track.kind;
+                        if (rk === track.kind) return true;
+                        // пустой transceiver того же направления
+                        if (!tr.receiver.track && tr.direction && tr.direction.indexOf('send') !== -1) {
+                            // берём первый свободный подходящий по порядку
+                            return !peerConnection.getSenders().some(s => s !== tr.sender && s.track && s.track.kind === track.kind);
+                        }
+                    }
+                    return false;
+                });
+                if (tr) sender = tr.sender;
+            }
+            if (!sender) {
+                sender = peerConnection.getSenders().find(s => !s.track);
+            }
+            if (sender) {
+                try { await sender.replaceTrack(track); } catch (e) { console.warn('replaceTrack', e); peerConnection.addTrack(track, stream); }
+            } else {
+                peerConnection.addTrack(track, stream);
+            }
+        }
+    }
+
+    // Очередь ICE, пока remote description ещё не установлен
+    let pendingIceCandidates = [];
     async function addIceSafe(candidate) {
         if (!peerConnection || !candidate) return;
         try {
@@ -3109,206 +3261,32 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         }
     }
 
-    function listenForIncomingCalls() {
-        if (!me || !me.id) return;
-        const myId = String(me.id);
-        // снять старые слушатели
-        try { rtdb.ref('/dg_user_calls/' + myId).off(); } catch (_) {}
-        try { rtdb.ref('/dg_incoming/' + myId).off(); } catch (_) {}
-
-        const handleIncoming = (callId, meta) => {
-            if (!callId) return;
-            callId = String(callId);
-            if (currentCallId && String(currentCallId) === callId && peerConnection) return;
-            console.log('[call] incoming signal', callId, meta);
-
-            const openUI = (callerId, isVideo) => {
-                try { showToast('📞 Входящий звонок…'); } catch (_) {}
-                showIncomingCallUI(callerId, callId, !!isVideo);
-            };
-
-            if (meta && meta.caller) {
-                openUI(meta.caller, meta.isVideo);
-                return;
-            }
-            const tryLoad = (attempt) => {
-                rtdb.ref('/dg_calls/' + callId).once('value', callSnap => {
-                    const callData = callSnap.val();
-                    if (!callData) {
-                        if (attempt < 15) setTimeout(() => tryLoad(attempt + 1), 250);
-                        return;
-                    }
-                    if (callData.status && callData.status !== 'ringing') return;
-                    if (callData.caller && String(callData.caller) === myId) return;
-                    openUI(callData.caller, callData.isVideo);
-                });
-            };
-            tryLoad(0);
-        };
-
-        rtdb.ref('/dg_user_calls/' + myId).on('value', snap => {
-            const v = snap.val();
-            console.log('[call] dg_user_calls', myId, v);
-            if (v) handleIncoming(v, null);
-            else if (currentCallId && !peerConnection) { try { hideCallUI(); } catch(_){} }
-        });
-
-        rtdb.ref('/dg_incoming/' + myId).on('value', snap => {
-            const d = snap.val();
-            console.log('[call] dg_incoming', myId, d);
-            if (d && d.callId && (d.status === 'ringing' || !d.status)) {
-                handleIncoming(d.callId, d);
-            }
-        });
-        _callListenAttached = true;
-    }
-
-    function showIncomingCallUI(callerId, callId, isVideoCall) {
-        try {
-            currentCallId = callId;
-            currentCallIsVideo = !!isVideoCall;
-            const caller = (db.users || []).find(u => u && String(u.id) === String(callerId));
-            const name = caller ? (caller.name || caller.login || 'Абонент') : 'Входящий вызов';
-            const avType = caller ? (caller.avatarType || 'emoji') : 'emoji';
-            const avVal = caller ? (caller.avatarValue || 'person') : 'person';
-            try { applyCallBackground(); } catch (_) {}
-            const avEl = document.getElementById('callAvatar');
-            if (avEl) avEl.innerHTML = getAvatarHtml(avType, avVal);
-            const n1 = document.getElementById('callName'); if (n1) n1.textContent = name;
-            const n2 = document.getElementById('callNameSmall'); if (n2) n2.textContent = name;
-            const mi = document.getElementById('minCallInfo'); if (mi) mi.textContent = name + ' · Входящий...';
-            setCallStatusText('Входящий вызов...');
-            isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
-            const overlay = document.getElementById('callOverlay');
-            if (overlay) { overlay.classList.remove('closing'); overlay.classList.add('active'); }
-            const minBar = document.getElementById('minimizedCallBar'); if (minBar) minBar.style.display = 'none';
-            const cca = document.getElementById('callCenterArea'); if (cca) cca.style.display = 'flex';
-            const ctc = document.getElementById('callTopCenter'); if (ctc) ctc.style.display = 'none';
-            const controls = document.getElementById('callControls');
-            if (controls) {
-                controls.innerHTML = `
-                    <div class="call-btn-group"><button class="call-btn-circle" style="background: var(--online); color: white;" onclick="acceptCall(${currentCallIsVideo ? 'true' : 'false'})"><span class="material-symbols-outlined">${currentCallIsVideo ? 'videocam' : 'call'}</span></button><div class="call-btn-label">Принять</div></div>
-                    <div class="call-btn-group"><button class="call-btn-circle red" onclick="endCall()"><span class="material-symbols-outlined">call_end</span></button><div class="call-btn-label">Отклонить</div></div>
-                `;
-            }
-            const lv = document.getElementById('localVideo'); if (lv) lv.style.display = 'none';
-            const rv = document.getElementById('remoteVideo'); if (rv) rv.classList.remove('active-video');
-            try { startRingtone(false); } catch (e) { console.warn(e); }
-            if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
-                try { showAppNotification('Входящий вызов', 'Звонит ' + name, { tag: 'call-' + callId, requireInteraction: true }); } catch (_) {}
-            }
-        } catch (e) {
-            console.error('showIncomingCallUI', e);
-            try { showToast('Входящий звонок (ошибка UI)'); } catch (_) {}
-        }
-    }
-
-    function minimizeCall() {
-        const overlay = document.getElementById('callOverlay');
-        if (overlay) overlay.classList.remove('active');
-        setTimeout(() => { const b = document.getElementById('minimizedCallBar'); if (b) b.style.display = 'flex'; }, 300);
-    }
-    function expandCall() {
-        const overlay = document.getElementById('callOverlay');
-        if (overlay) overlay.classList.add('active');
-        const b = document.getElementById('minimizedCallBar'); if (b) b.style.display = 'none';
-    }
-    function hideCallUI() {
-        const overlay = document.getElementById('callOverlay');
-        if (overlay) { overlay.classList.remove('active'); overlay.classList.add('closing'); }
-        const minBar = document.getElementById('minimizedCallBar'); if (minBar) minBar.style.display = 'none';
-        setTimeout(() => {
-            if (overlay) overlay.classList.remove('closing');
-            const lv = document.getElementById('localVideo'); if (lv) lv.style.display = 'none';
-            const rv = document.getElementById('remoteVideo');
-            if (rv) { rv.classList.remove('active-video'); rv.srcObject = null; }
-            const ctc = document.getElementById('callTopCenter'); if (ctc) ctc.style.display = 'none';
-            const cca = document.getElementById('callCenterArea'); if (cca) cca.style.display = 'flex';
-        }, 400);
-        try { stopAllRingtones(); } catch (_) {}
-    }
-
-    function renderCalls() {
-        if (!me) return;
-        const container = document.getElementById('calls-list');
-        if (!container) return;
-        const myCalls = (db.callLogs || []).filter(c => c && (c.caller === me.id || c.callee === me.id)).sort((a, b) => (b.time || 0) - (a.time || 0));
-        if (myCalls.length === 0) {
-            container.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined" style="font-size: 48px;">phone</span><br>Здесь будут отображаться<br>ваши звонки</div>';
-            return;
-        }
-        container.innerHTML = myCalls.map(c => {
-            const isIncoming = c.callee === me.id;
-            const otherId = isIncoming ? c.caller : c.callee;
-            const other = (db.users || []).find(u => u && u.id === otherId);
-            if (!other) return '';
-            let icon = ''; let color = 'var(--mut)';
-            if (c.status === 'missed') { icon = isIncoming ? 'call_received' : 'call_made'; color = 'var(--red)'; }
-            else if (c.status === 'declined') { icon = 'call_end'; color = 'var(--red)'; }
-            else { icon = isIncoming ? 'call_received' : 'call_made'; color = isIncoming ? 'var(--p)' : 'var(--online)'; }
-            const timeStr = new Date(c.time).toLocaleString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
-            const durStr = c.duration ? ` • ${Math.floor(c.duration/60)}:${(c.duration%60).toString().padStart(2,'0')}` : '';
-            return `<div class="list-item" onclick="startChat('${other.id}')"><div class="av-sm">${getAvatarHtml(other.avatarType, other.avatarValue)}</div><div class="list-info"><div class="list-name" style="color:${c.status==='missed'&&isIncoming ? 'var(--red)' : 'var(--txt)'}">${escapeHtml(other.name)}</div><div class="list-preview" style="color: ${color}"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">${icon}</span> ${c.isVideo ? 'Видеозвонок' : 'Аудиозвонок'} ${durStr}<span style="color:var(--mut); margin-left:6px; font-weight:normal;">${timeStr}</span></div></div><button class="icon-btn" style="color:var(--p)" onclick="event.stopPropagation(); startChat('${other.id}'); setTimeout(()=>initiateCall(${!!c.isVideo}), 50);"><span class="material-symbols-outlined">call</span></button></div>`;
-        }).join('');
-    }
-
-    function clearCallHistory() {
-        if (!me) return;
-        if (!confirm('Очистить весь журнал вызовов? Это действие нельзя отменить.')) return;
-        db.callLogs = (db.callLogs || []).filter(c => c.caller !== me.id && c.callee !== me.id);
-        rtdb.ref('/dg_app_data/callLogs').set(db.callLogs);
-        renderCalls();
-        showToast('Журнал вызовов очищен');
-    }
-
-    async function signalIncoming(targetUserId, callId, isVideo) {
-        const tid = String(targetUserId);
-        const payload = { callId: callId, caller: me.id, isVideo: !!isVideo, status: 'ringing', ts: Date.now() };
-        try { await rtdb.ref('/dg_user_calls/' + tid).set(callId); } catch (e) { console.warn(e); }
-        try { await rtdb.ref('/dg_incoming/' + tid).set(payload); } catch (e) { console.warn(e); }
-        // повтор через 1с на случай гонки
-        setTimeout(() => {
-            rtdb.ref('/dg_user_calls/' + tid).set(callId).catch(() => {});
-            rtdb.ref('/dg_incoming/' + tid).set(payload).catch(() => {});
-        }, 1000);
-    }
-
-    async function clearIncomingSignal(userId) {
-        if (!userId) return;
-        const uid = String(userId);
-        try { await rtdb.ref('/dg_user_calls/' + uid).remove(); } catch (_) {}
-        try { await rtdb.ref('/dg_incoming/' + uid).remove(); } catch (_) {}
-    }
-
     async function initiateCall(isVideo) {
         if (!activeChat || activeChat.type !== 'direct') return;
         unlockAudioContext();
         const targetUserId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
-        const targetUser = (db.users || []).find(u => u && u.id === targetUserId);
-        if (!targetUser) { showToast('Пользователь не найден'); return; }
-
+        const targetUser = db.users.find(u => u.id === targetUserId);
+        if (!targetUser) return;
         currentCallId = 'call_' + Date.now();
-        currentCallIsVideo = !!isVideo;
+        currentCallIsVideo = isVideo;
         currentFacingMode = 'user';
-        pendingIceCandidates = [];
         applyCallBackground();
-        try {
-            document.getElementById('callAvatar').innerHTML = getAvatarHtml(targetUser.avatarType, targetUser.avatarValue);
-            document.getElementById('callName').textContent = targetUser.name;
-            document.getElementById('callNameSmall').textContent = targetUser.name;
-            document.getElementById('minCallInfo').textContent = targetUser.name + ' · Ожидание...';
-        } catch (_) {}
-        setCallStatusText('Звоним...');
+        document.getElementById('callAvatar').innerHTML = getAvatarHtml(targetUser.avatarType, targetUser.avatarValue);
+        document.getElementById('callName').textContent = targetUser.name;
+        document.getElementById('callNameSmall').textContent = targetUser.name;
+        document.getElementById('minCallInfo').textContent = targetUser.name + ' · ' + t('call_waiting');
+        setCallStatusText(t('call_calling'));
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
 
         const overlay = document.getElementById('callOverlay');
-        if (overlay) { overlay.classList.remove('closing'); overlay.classList.add('active'); }
-        const minBar = document.getElementById('minimizedCallBar'); if (minBar) minBar.style.display = 'none';
-        const cca = document.getElementById('callCenterArea'); if (cca) cca.style.display = 'flex';
-        const ctc = document.getElementById('callTopCenter'); if (ctc) ctc.style.display = 'none';
+        overlay.classList.remove('closing'); overlay.classList.add('active');
+        document.getElementById('minimizedCallBar').style.display = 'none';
+        document.getElementById('callCenterArea').style.display = 'flex';
+        document.getElementById('callTopCenter').style.display = 'none';
         renderCallControls();
 
         try {
+            pendingIceCandidates = [];
             const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
             localStream = await navigator.mediaDevices.getUserMedia({
                 audio: audioConstraints,
@@ -3321,12 +3299,10 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
             peerConnection.ontrack = (event) => handleRemoteTrack(event);
             peerConnection.onicecandidate = event => {
-                if (event.candidate) rtdb.ref('/dg_calls/' + currentCallId + '/callerIce').push(event.candidate.toJSON());
-            };
-            peerConnection.onconnectionstatechange = () => {
-                console.log('[call] pc state', peerConnection && peerConnection.connectionState);
+                if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).push(event.candidate.toJSON());
             };
 
             const offer = await peerConnection.createOffer();
@@ -3334,73 +3310,86 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
 
             startRingtone(true);
 
-            await rtdb.ref('/dg_calls/' + currentCallId).set({
-                caller: me.id,
-                callee: targetUserId,
+            await rtdb.ref(`/dg_calls/${currentCallId}`).set({
+                caller: me.id, callee: targetUserId,
                 offer: { type: offer.type, sdp: offer.sdp },
-                status: 'ringing',
-                isVideo: !!isVideo,
-                createdAt: Date.now()
+                status: 'ringing', isVideo: isVideo
             });
-            await signalIncoming(targetUserId, currentCallId, isVideo);
+            const tid = String(targetUserId);
+            const incomingPayload = {
+                callId: currentCallId,
+                caller: me.id,
+                isVideo: !!isVideo,
+                status: 'ringing',
+                at: Date.now()
+            };
+            await rtdb.ref('/dg_user_calls/' + tid).set(currentCallId);
+            await rtdb.ref('/dg_incoming/' + tid).set(incomingPayload);
+            setTimeout(() => {
+                rtdb.ref('/dg_user_calls/' + tid).set(currentCallId).catch(() => {});
+                rtdb.ref('/dg_incoming/' + tid).set(incomingPayload).catch(() => {});
+            }, 500);
+            setTimeout(() => {
+                rtdb.ref('/dg_user_calls/' + tid).set(currentCallId).catch(() => {});
+                rtdb.ref('/dg_incoming/' + tid).set(incomingPayload).catch(() => {});
+            }, 1500);
+            console.log('[call] SIGNALLED to', tid, currentCallId);
+            try { notifyUserPush(targetUserId, 'Входящий вызов', (me.name || me.login || 'Nexagram') + (isVideo ? ' (видео)' : '')); } catch (_) {}
 
-            // таймаут 45 сек
-            if (window._callAnswerTimer) clearTimeout(window._callAnswerTimer);
+            // Таймаут ожидания ответа — 20 секунд
+            if (window._callAnswerTimer) { clearTimeout(window._callAnswerTimer); }
+            const callIdForTimeout = currentCallId;
             window._callAnswerTimer = setTimeout(async () => {
                 try {
-                    const snap = await rtdb.ref('/dg_calls/' + currentCallId).once('value');
+                    if (!currentCallId || currentCallId !== callIdForTimeout) return;
+                    const snap = await rtdb.ref('/dg_calls/' + callIdForTimeout).once('value');
                     const d = snap.val();
                     if (d && d.status === 'ringing') {
-                        await rtdb.ref('/dg_calls/' + currentCallId).update({ status: 'missed' });
-                        await clearIncomingSignal(targetUserId);
-                        await clearIncomingSignal(me.id);
+                        await rtdb.ref('/dg_calls/' + callIdForTimeout).update({ status: 'missed' });
+                        await rtdb.ref('/dg_user_calls/' + targetUserId).remove();
                         showToast('Нет ответа');
-                        cleanupCall();
                     }
-                } catch (e) { console.warn(e); }
-            }, 45000);
+                } catch (e) { console.warn('call timeout', e); }
+            }, 20000);
 
             let isAnswerProcessed = false;
-            if (callRef) try { callRef.off(); } catch(_){}
-            callRef = rtdb.ref('/dg_calls/' + currentCallId);
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
             callRef.on('value', async snap => {
                 const data = snap.val();
                 if (!data) return;
                 if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') {
                     if (window._callAnswerTimer) { clearTimeout(window._callAnswerTimer); window._callAnswerTimer = null; }
+                    cleanupCall();
                     if (data.caller === me.id) {
                         const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: data.status, isVideo: data.isVideo, duration: callSeconds };
-                        db.callLogs = db.callLogs || [];
                         db.callLogs.push(newLog);
                         rtdb.ref('/dg_app_data/callLogs').set(db.callLogs);
                     }
-                    cleanupCall();
                     return;
                 }
                 if (data.answer && !isAnswerProcessed) {
                     isAnswerProcessed = true;
                     if (window._callAnswerTimer) { clearTimeout(window._callAnswerTimer); window._callAnswerTimer = null; }
                     stopAllRingtones();
-                    setCallStatusText('Разговор (0:00)');
+                    setCallStatusText(t('call_talking') + ' (0:00)');
                     startCallTimer();
                     try {
                         await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                         await flushPendingIce();
                     } catch (err) {
                         console.error(err);
-                        showToast('Ошибка звонка: ' + err.message);
+                        showToast(t('call_error') + ': ' + err.message);
                         endCall();
                     }
                 }
             });
 
-            rtdb.ref('/dg_calls/' + currentCallId + '/calleeIce').on('child_added', snap => {
+            rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).on('child_added', snap => {
                 if (snap.val()) addIceSafe(snap.val());
             });
 
         } catch (e) {
-            console.error(e);
-            showToast('Ошибка микрофона: ' + (e.message || e));
+            showToast(t('call_mic_error') + ': ' + e.message);
             cleanupCall();
         }
     }
@@ -3408,15 +3397,11 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
     async function acceptCall(isVideo) {
         if (!currentCallId) return;
         unlockAudioContext();
-        try {
-            const inRing = document.getElementById('incomingRingtone');
-            if (inRing) { inRing.pause(); inRing.currentTime = 0; }
-        } catch (_) {}
-        currentCallIsVideo = !!isVideo;
-        setCallStatusText('Соединение...');
+        stopAllRingtones();
+        currentCallIsVideo = isVideo;
+        setCallStatusText(t('call_connecting'));
         isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
         renderCallControls();
-        pendingIceCandidates = [];
 
         try {
             const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -3431,153 +3416,200 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
             peerConnection.ontrack = (event) => handleRemoteTrack(event);
             peerConnection.onicecandidate = event => {
-                if (event.candidate) rtdb.ref('/dg_calls/' + currentCallId + '/calleeIce').push(event.candidate.toJSON());
+                if (event.candidate) rtdb.ref(`/dg_calls/${currentCallId}/calleeIce`).push(event.candidate.toJSON());
             };
 
-            // ICE от звонящего — сразу слушаем
-            rtdb.ref('/dg_calls/' + currentCallId + '/callerIce').on('child_added', snap => {
-                if (snap.val()) addIceSafe(snap.val());
-            });
-
-            const callSnap = await rtdb.ref('/dg_calls/' + currentCallId).once('value');
+            const callSnap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value');
             const callData = callSnap.val();
-            if (!callData || !callData.offer) {
-                showToast('Звонок уже завершён');
-                cleanupCall();
-                return;
-            }
+            if (!callData || !callData.offer) throw new Error(t('call_error'));
 
+            pendingIceCandidates = [];
             await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
             await flushPendingIce();
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
 
-            await rtdb.ref('/dg_calls/' + currentCallId).update({
+            await rtdb.ref(`/dg_calls/${currentCallId}`).update({
                 answer: { type: answer.type, sdp: answer.sdp },
                 status: 'connected'
             });
-            await clearIncomingSignal(me.id);
+            await rtdb.ref(`/dg_user_calls/${me.id}`).remove();
 
-            setCallStatusText('Разговор (0:00)');
+            setCallStatusText(t('call_talking') + ' (0:00)');
             startCallTimer();
-            stopAllRingtones();
 
-            if (callRef) try { callRef.off(); } catch(_){}
-            callRef = rtdb.ref('/dg_calls/' + currentCallId);
+            callRef = rtdb.ref(`/dg_calls/${currentCallId}`);
             callRef.on('value', snap => {
                 const data = snap.val();
-                if (!data || data.status === 'ended' || data.status === 'declined' || data.status === 'missed') cleanupCall();
+                if (!data) return;
+                if (data.status === 'ended' || data.status === 'declined' || data.status === 'missed') cleanupCall();
             });
+
+            rtdb.ref(`/dg_calls/${currentCallId}/callerIce`).on('child_added', snap => {
+                if (snap.val()) addIceSafe(snap.val());
+            });
+
         } catch (e) {
-            console.error(e);
-            showToast('Ошибка микрофона: ' + (e.message || e));
+            showToast(t('call_mic_error') + ': ' + e.message);
             endCall();
         }
     }
 
     async function endCall() {
         if (currentCallId) {
-            try {
-                const snap = await rtdb.ref('/dg_calls/' + currentCallId).once('value');
-                const data = snap.val();
-                if (data) {
-                    const isRinging = data.status === 'ringing';
-                    const isCaller = String(data.caller) === String(me.id);
-                    const endStatus = isRinging ? (isCaller ? 'missed' : 'declined') : 'ended';
-                    await rtdb.ref('/dg_calls/' + currentCallId).update({ status: endStatus });
-                    await clearIncomingSignal(data.callee);
-                    await clearIncomingSignal(data.caller);
-                    if (isCaller) {
-                        const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: endStatus, isVideo: data.isVideo, duration: callSeconds };
-                        db.callLogs = db.callLogs || [];
-                        db.callLogs.push(newLog);
-                        rtdb.ref('/dg_app_data/callLogs').set(db.callLogs);
-                    }
-                }
-            } catch (e) { console.warn(e); }
+            const snap = await rtdb.ref(`/dg_calls/${currentCallId}`).once('value'); const data = snap.val();
+            if (data) {
+                const isRinging = data.status === 'ringing'; const isCaller = data.caller === me.id; const endStatus = isRinging ? (isCaller ? 'missed' : 'declined') : 'ended';
+                await rtdb.ref(`/dg_calls/${currentCallId}`).update({ status: endStatus }); await rtdb.ref('/dg_user_calls/' + data.callee).remove();
+                await rtdb.ref('/dg_user_calls/' + data.caller).remove();
+                try { await rtdb.ref('/dg_incoming/' + data.callee).remove(); } catch (_) {}
+                try { await rtdb.ref('/dg_incoming/' + data.caller).remove(); } catch (_) {}
+                if (isCaller) { const newLog = { id: 'log_' + Date.now(), caller: data.caller, callee: data.callee, time: Date.now(), status: endStatus, isVideo: data.isVideo, duration: callSeconds }; db.callLogs.push(newLog); rtdb.ref('/dg_app_data/callLogs').set(db.callLogs); }
+            }
         }
         cleanupCall();
     }
 
-    function toggleCallMic() {
-        if (localStream) {
-            isCallMicMuted = !isCallMicMuted;
-            localStream.getAudioTracks().forEach(t => t.enabled = !isCallMicMuted);
-            renderCallControls();
-        }
-    }
-    function toggleCallCam(forceVideo = false) {
-        if (localStream) {
-            if (forceVideo && !currentCallIsVideo) {
-                alert('Включение видео в процессе аудиозвонка в разработке.');
-            } else {
-                isCallCamOff = !isCallCamOff;
-                localStream.getVideoTracks().forEach(t => t.enabled = !isCallCamOff);
-                const lv = document.getElementById('localVideo');
-                if (lv) lv.style.opacity = isCallCamOff ? '0' : '1';
-                renderCallControls();
-            }
-        }
-    }
+    function toggleCallMic() { if (localStream) { isCallMicMuted = !isCallMicMuted; localStream.getAudioTracks().forEach(t => t.enabled = !isCallMicMuted); renderCallControls(); } }
+    function toggleCallCam(forceVideo = false) { if (localStream) { if (forceVideo && !currentCallIsVideo) { alert("Включение видео в процессе аудиозвонка в разработке."); } else { isCallCamOff = !isCallCamOff; localStream.getVideoTracks().forEach(t => t.enabled = !isCallCamOff); document.getElementById('localVideo').style.opacity = isCallCamOff ? '0' : '1'; renderCallControls(); } } }
     async function flipCamera() {
-        if (!localStream || !currentCallIsVideo) return;
+        if (!localStream || !currentCallIsVideo) return; currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
         try {
-            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-            const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode }, audio: false });
-            const oldVideoTrack = localStream.getVideoTracks()[0];
-            if (oldVideoTrack) { oldVideoTrack.stop(); localStream.removeTrack(oldVideoTrack); }
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            localStream.addTrack(newVideoTrack);
-            const localVid = document.getElementById('localVideo');
-            if (localVid) { localVid.srcObject = localStream; localVid.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none'; }
-            if (peerConnection) {
-                const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                if (sender) sender.replaceTrack(newVideoTrack);
-            }
-        } catch (e) { console.warn(e); showToast('Не удалось переключить камеру'); }
+            const oldVideoTrack = localStream.getVideoTracks()[0]; if (oldVideoTrack) { oldVideoTrack.stop(); localStream.removeTrack(oldVideoTrack); }
+            const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: currentFacingMode } }, audio: false });
+            const newVideoTrack = newStream.getVideoTracks()[0]; localStream.addTrack(newVideoTrack);
+            const localVid = document.getElementById('localVideo'); localVid.srcObject = localStream; localVid.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+            if (peerConnection) { const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(newVideoTrack); }
+        } catch(e) { console.error("Error", e); alert("Не удалось переключить камеру: " + e.message); }
+    }
+
+    // === Обработка входящих треков (звук отдельно от видео — надёжнее) ===
+    // === Визуализация голоса вокруг авы ===
+    let voiceRaf = null;
+    let voiceAnalyser = null;
+    let voiceSource = null;
+    let voiceSmooth = 0;
+
+    function stopVoiceVisualizer() {
+        if (voiceRaf) { cancelAnimationFrame(voiceRaf); voiceRaf = null; }
+        try { if (voiceSource) voiceSource.disconnect(); } catch (_) {}
+        voiceSource = null;
+        voiceAnalyser = null;
+        voiceSmooth = 0;
+        const box = document.getElementById('callAvatarContainer');
+        if (box) {
+            box.style.setProperty('--voice', '0');
+            box.classList.remove('voice-active');
+        }
+    }
+
+    function startVoiceVisualizer(stream) {
+        stopVoiceVisualizer();
+        if (!stream) return;
+        try {
+            unlockAudioContext();
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+
+            voiceAnalyser = audioCtx.createAnalyser();
+            voiceAnalyser.fftSize = 256;
+            voiceAnalyser.smoothingTimeConstant = 0.7;
+            // клон треков, чтобы не ломать цепочку воспроизведения remoteAudio
+            const tracks = stream.getAudioTracks();
+            if (!tracks.length) return;
+            const analyseStream = new MediaStream(tracks.map(tr => tr.clone()));
+            voiceSource = audioCtx.createMediaStreamSource(analyseStream);
+            voiceSource.connect(voiceAnalyser);
+            // не подключаем к destination — только анализ, звук идёт через <audio>
+
+            const data = new Uint8Array(voiceAnalyser.frequencyBinCount);
+            const box = document.getElementById('callAvatarContainer');
+
+            const tick = () => {
+                voiceRaf = requestAnimationFrame(tick);
+                if (!voiceAnalyser) return;
+                voiceAnalyser.getByteFrequencyData(data);
+                // низкие+средние частоты — голос
+                let sum = 0;
+                const n = Math.min(40, data.length);
+                for (let i = 1; i < n; i++) sum += data[i];
+                let level = (sum / n) / 255;
+                // порог тишины + усиление
+                level = Math.max(0, (level - 0.04) * 2.2);
+                level = Math.min(1, level);
+                voiceSmooth = voiceSmooth * 0.65 + level * 0.35;
+                if (box) {
+                    box.style.setProperty('--voice', voiceSmooth.toFixed(3));
+                    if (voiceSmooth > 0.06) box.classList.add('voice-active');
+                    else box.classList.remove('voice-active');
+                }
+            };
+            tick();
+        } catch (e) {
+            console.warn('voice visualizer', e);
+        }
     }
 
     function handleRemoteTrack(event) {
-        const track = event.track;
         const rVid = document.getElementById('remoteVideo');
         const rAud = document.getElementById('remoteAudio');
-        if (!track) return;
+        const track = event.track;
+
+        unlockAudioContext();
+        try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (_) {}
+
         if (track.kind === 'audio') {
+            try { track.enabled = true; } catch (_) {}
             let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
-            if (!stream && rAud) {
-                stream = rAud.srcObject instanceof MediaStream ? rAud.srcObject : new MediaStream();
+            if (!stream) {
+                stream = (rAud && rAud.srcObject instanceof MediaStream) ? rAud.srcObject : new MediaStream();
                 if (!stream.getAudioTracks().includes(track)) stream.addTrack(track);
+            } else if (!stream.getAudioTracks().includes(track)) {
+                try { stream.addTrack(track); } catch (_) {}
             }
             if (rAud) {
                 rAud.srcObject = stream;
-                rAud.volume = 1;
-                const tryPlay = () => rAud.play().catch(e => {
-                    console.warn('remoteAudio play:', e);
-                    try {
+                rAud.muted = false;
+                rAud.volume = isSpeakerOn ? 1 : 0.5;
+                rAud.setAttribute('playsinline', '');
+                rAud.setAttribute('autoplay', '');
+                const tryPlay = () => {
+                    const p = rAud.play();
+                    if (p && p.catch) p.catch(e => {
+                        console.warn('remoteAudio play:', e);
                         const toast = document.getElementById('audio-unlock-toast');
                         if (toast) { toast.style.display = 'block'; toast.classList.add('shake'); }
-                    } catch (_) {}
-                });
+                    });
+                };
                 tryPlay();
-                setTimeout(tryPlay, 300);
+                setTimeout(tryPlay, 200);
+                setTimeout(tryPlay, 800);
             }
+            // WebAudio fallback (некоторые WebView)
+            try {
+                if (audioCtx && !window._remoteAudioConnected) {
+                    const srcNode = audioCtx.createMediaStreamSource(stream);
+                    srcNode.connect(audioCtx.destination);
+                    window._remoteAudioConnected = srcNode;
+                }
+            } catch (e) { console.warn('webaudio remote', e); }
+            startVoiceVisualizer(stream);
         } else if (track.kind === 'video') {
             let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
-            if (!stream && rVid) {
+            if (!stream) {
                 stream = rVid.srcObject instanceof MediaStream ? rVid.srcObject : new MediaStream();
                 if (!stream.getVideoTracks().includes(track)) stream.addTrack(track);
             }
-            if (rVid) {
-                rVid.srcObject = stream;
-                rVid.muted = true;
-                rVid.play().then(() => {
-                    rVid.classList.add('active-video');
-                    const ctc = document.getElementById('callTopCenter'); if (ctc) ctc.style.display = 'block';
-                    const cca = document.getElementById('callCenterArea'); if (cca) cca.style.display = 'none';
-                }).catch(e => console.warn('remoteVideo play:', e));
-            }
+            rVid.srcObject = stream;
+            rVid.muted = true;
+            rVid.play().then(() => {
+                rVid.classList.add('active-video');
+                document.getElementById('callTopCenter').style.display = 'block';
+                document.getElementById('callCenterArea').style.display = 'none';
+            }).catch(e => console.warn('remoteVideo play:', e));
         }
     }
 
@@ -3586,48 +3618,36 @@ let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady
         renderCallControls();
         const rVid = document.getElementById('remoteVideo');
         const rAud = document.getElementById('remoteAudio');
+        // Громкость
         if (rVid) rVid.volume = isSpeakerOn ? 1 : 0.3;
         if (rAud) rAud.volume = isSpeakerOn ? 1 : 0.3;
-        try {
-            if (rVid && typeof rVid.setSinkId === 'function') rVid.setSinkId(isSpeakerOn ? 'default' : '').catch(() => {});
-            if (rAud && typeof rAud.setSinkId === 'function') rAud.setSinkId(isSpeakerOn ? 'default' : '').catch(() => {});
-        } catch (_) {}
+        if (typeof rVid.setSinkId === 'function') {
+            rVid.setSinkId(isSpeakerOn ? 'default' : '').catch(e => console.log(e));
+        }
+        if (typeof rAud.setSinkId === 'function') {
+            rAud.setSinkId(isSpeakerOn ? 'default' : '').catch(e => console.log(e));
+        }
     }
 
     let callInterval; let callSeconds = 0;
-    function startCallTimer() {
-        clearInterval(callInterval);
-        callSeconds = 0;
-        callInterval = setInterval(() => {
-            callSeconds++;
-            const m = Math.floor(callSeconds / 60);
-            const s = (callSeconds % 60).toString().padStart(2, '0');
-            setCallStatusText('Разговор (' + m + ':' + s + ')');
-            const nameEl = document.getElementById('callNameSmall');
-            const name = nameEl ? nameEl.textContent : '';
-            const mi = document.getElementById('minCallInfo');
-            if (mi) mi.textContent = name + ' · ' + m.toString().padStart(2, '0') + ':' + s;
-        }, 1000);
-    }
+    function startCallTimer() { clearInterval(callInterval); callSeconds = 0; callInterval = setInterval(() => { callSeconds++; const m = Math.floor(callSeconds / 60); const s = (callSeconds % 60).toString().padStart(2, '0'); const timeStr = `${m}:${s}`; setCallStatusText(`Разговор (${timeStr})`); const name = document.getElementById('callNameSmall').textContent; document.getElementById('minCallInfo').textContent = `${name} · ${m.toString().padStart(2, '0')}:${s}`; }, 1000); }
     function cleanupCall() {
         if (window._callAnswerTimer) { clearTimeout(window._callAnswerTimer); window._callAnswerTimer = null; }
         clearInterval(callInterval);
-        try { stopAllRingtones(); } catch (_) {}
+        stopVoiceVisualizer();
         if (localStream) localStream.getTracks().forEach(t => t.stop());
-        if (peerConnection) try { peerConnection.close(); } catch (_) {}
+        if (peerConnection) peerConnection.close();
         peerConnection = null;
         localStream = null;
-        if (callRef) try { callRef.off(); } catch (_) {}
-        callRef = null;
+        if (callRef) callRef.off();
         currentCallId = null;
-        pendingIceCandidates = [];
         const rVid = document.getElementById('remoteVideo');
         const rAud = document.getElementById('remoteAudio');
         if (rVid) { rVid.srcObject = null; rVid.classList.remove('active-video'); }
-        if (rAud) { rAud.srcObject = null; try { rAud.pause(); } catch(_){} }
+        if (rAud) { rAud.srcObject = null; rAud.pause(); }
+        try { if (window._remoteAudioConnected) { window._remoteAudioConnected.disconnect(); window._remoteAudioConnected = null; } } catch(_){}
         hideCallUI();
     }
-
 
     // ================= АВТОРИЗАЦИЯ И СОЦСЕТИ =================
 
