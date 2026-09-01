@@ -2939,18 +2939,32 @@
 
     function listenForIncomingCalls() {
         if (!me) return;
+        try { rtdb.ref('/dg_user_calls/' + me.id).off(); } catch(e) {}
         rtdb.ref('/dg_user_calls/' + me.id).on('value', snap => {
             const incomingCallId = snap.val();
+            console.log('[call] dg_user_calls hit', incomingCallId);
             if (incomingCallId) {
-                rtdb.ref('/dg_calls/' + incomingCallId).once('value', callSnap => { const callData = callSnap.val(); if (callData && callData.status === 'ringing' && callData.caller !== me.id) { showIncomingCallUI(callData.caller, incomingCallId, callData.isVideo); } });
-            } else { if (currentCallId && !peerConnection) { hideCallUI(); } }
+                rtdb.ref('/dg_calls/' + incomingCallId).once('value', callSnap => {
+                    const callData = callSnap.val();
+                    console.log('[call] call data', callData);
+                    if (callData && callData.status === 'ringing' && String(callData.caller) !== String(me.id)) {
+                        showIncomingCallUI(callData.caller, incomingCallId, callData.isVideo);
+                    }
+                });
+            } else {
+                if (currentCallId && !peerConnection) { hideCallUI(); }
+            }
         });
     }
 
     function showIncomingCallUI(callerId, callId, isVideoCall) {
-        currentCallId = callId; currentCallIsVideo = isVideoCall; const caller = db.users.find(u => u.id === callerId);
+        currentCallId = callId; currentCallIsVideo = isVideoCall;
+        const caller = (db.users || []).find(u => String(u.id) === String(callerId)) || { id: callerId, name: 'Звонок', avatarType: 'color', avatarValue: '#ff6b00' };
         applyCallBackground(); 
-        document.getElementById('callAvatar').innerHTML = getAvatarHtml(caller.avatarType, caller.avatarValue); document.getElementById('callName').textContent = caller.name; document.getElementById('callNameSmall').textContent = caller.name; document.getElementById('minCallInfo').textContent = `${caller.name} · Ожидание...`;
+        document.getElementById('callAvatar').innerHTML = getAvatarHtml(caller.avatarType || 'color', caller.avatarValue || '#ff6b00');
+        document.getElementById('callName').textContent = caller.name || 'Звонок';
+        document.getElementById('callNameSmall').textContent = caller.name || 'Звонок';
+        document.getElementById('minCallInfo').textContent = (caller.name || 'Звонок') + ' · Ожидание...';
         setCallStatusText(t('call_incoming')); isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
         const overlay = document.getElementById('callOverlay'); 
         overlay.classList.remove('closing');
