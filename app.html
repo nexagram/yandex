@@ -2261,20 +2261,7 @@
     let redirectHandled = false; // <-- НОВАЯ ПЕРЕМЕННАЯ
     
     let db = { users: [], chats: [], stories: [], callLogs: [] };
-        // === Редирект на ПК-версию (десктоп) ===
-    (function () {
-        try {
-            var path = (location.pathname || '').toLowerCase();
-            if (path.indexOf('pc.html') !== -1 || path.indexOf('app.html') !== -1) return;
-            if (localStorage.getItem('Nexagram_ForceMobile') === '1') return;
-            var isDesktop = window.innerWidth >= 900 || (window.matchMedia && window.matchMedia('(min-width: 900px) and (pointer: fine)').matches);
-            if (isDesktop) {
-                location.replace('pc.html' + (location.search || '') + (location.hash || ''));
-            }
-        } catch (e) {}
-    })();
-
-let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady = false;
+    let me = null; let activeChat = null; let currentChatsFilter = ''; let isDbReady = false;
     let mediaRecorder = null; let recordedChunks = []; let isRecordingVoice = false; let isRecordingVideo = false;
     let replyingTo = null; let forwardingMsg = null; let typingTimeout = null;
 
