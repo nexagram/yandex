@@ -782,20 +782,20 @@
         
         <div class="auth-form" id="registerForm">
             <div class="input-group">
-                <label data-i18n="email_label">Email</label>
-                <input type="email" id="regEmail" data-i18n-placeholder="ph_email" placeholder="you@email.com" autocomplete="email">
-            </div>
-            <div class="input-group">
-                <label data-i18n="user_label">Юз (логин)</label>
-                <input type="text" id="regUsername" data-i18n-placeholder="ph_user" placeholder="Уникальный логин без @" autocomplete="username">
+                <label data-i18n="login_label">Логин (без @) или Email</label>
+                <input type="text" id="regUsername" data-i18n-placeholder="ph_login" placeholder="Email или логин" autocomplete="username">
             </div>
             <div class="input-group">
                 <label data-i18n="pass_label">Пароль</label>
-                <input type="password" id="regPassword" data-i18n-placeholder="ph_pass_new" placeholder="Введите пароль (мин. 6)" autocomplete="new-password">
+                <input type="password" id="regPassword" data-i18n-placeholder="ph_pass_new" placeholder="Введите пароль (мин. 4)" autocomplete="new-password">
             </div>
             <div class="input-group">
                 <label data-i18n="pass_confirm">Подтверждение пароля</label>
                 <input type="password" id="regConfirm" data-i18n-placeholder="ph_pass_confirm" placeholder="Повторите пароль" autocomplete="new-password">
+            </div>
+            <div class="input-group secret-field visible" id="secretGroup">
+                <label data-i18n="secret_label">Секретное слово (если без Email)</label>
+                <input type="text" id="regSecret" data-i18n-placeholder="ph_secret" placeholder="Для восстановления аккаунта">
             </div>
             <button class="auth-btn" onclick="doRegister()" data-i18n="btn_register">Зарегистрироваться →</button>
         </div>
@@ -1313,11 +1313,7 @@
         ru: {
             tagline: 'Где рождается общение',
             tab_login: 'Вход', tab_register: 'Регистрация',
-            login_label: 'Логин или Email',
-            email_label: 'Email',
-            user_label: 'Юз (логин)',
-            ph_email: 'you@email.com',
-            ph_user: 'Уникальный логин без @', pass_label: 'Пароль',
+            login_label: 'Логин или Email', pass_label: 'Пароль',
             pass_confirm: 'Подтверждение пароля', secret_label: 'Секретное слово (если без Email)',
             btn_login: 'Войти →', btn_register: 'Зарегистрироваться →',
             forgot: 'Забыли пароль?',
@@ -1360,12 +1356,7 @@
         en: {
             tagline: 'Where conversation begins',
             tab_login: 'Sign in', tab_register: 'Sign up',
-            login_label: 'Username or Email',
-            email_label: 'Email',
-            user_label: 'Username',
-            ph_email: 'you@email.com',
-            ph_user: 'Unique username (no @)',
-            pass_label: 'Password',
+            login_label: 'Username or Email', pass_label: 'Password',
             pass_confirm: 'Confirm password', secret_label: 'Secret word (if no Email)',
             btn_login: 'Sign in →', btn_register: 'Create account →',
             forgot: 'Forgot password?',
@@ -1513,34 +1504,24 @@
 
     // Универсальный показ уведомления
     function showAppNotification(title, body, opts = {}) {
-        title = String(title || 'Nexagram');
-        body = String(body || '');
-        const tag = (opts && opts.tag) ? String(opts.tag) : ('nexagram-' + Date.now());
-
-        // Sketchware / Android WebView — нативный мост (без Google)
-        try {
-            if (window.NexagramAndroid && typeof window.NexagramAndroid.showNotification === 'function') {
-                window.NexagramAndroid.showNotification(title, body, tag);
-                return;
-            }
-        } catch (e) { console.warn('Android notif bridge', e); }
-
         if (!("Notification" in window)) return;
         if (Notification.permission !== "granted") return;
 
-        const iconUrl = (location.origin || '') + '/icon.png';
         const options = {
-            body: body,
-            icon: iconUrl,
-            badge: iconUrl,
-            tag: tag,
+            body: body || '',
+            icon: 'icon.png',
+            badge: 'icon.png',
+            tag: opts.tag || 'nexagram-' + Date.now(),
             renotify: true,
-            silent: false
+            silent: false,
+            ...opts
         };
-        if (opts && opts.requireInteraction) options.requireInteraction = true;
 
         try {
-            if (swRegistration && swRegistration.showNotification) {
+            if (swRegistration && swRegistration.active) {
+                swRegistration.showNotification(title, options);
+            } else if (swRegistration) {
+                // SW ещё активируется
                 swRegistration.showNotification(title, options);
             } else {
                 new Notification(title, options);
@@ -1549,10 +1530,6 @@
             try { new Notification(title, options); } catch (_) {}
         }
     }
-
-    // алиас (в FCM onMessage вызывался несуществующий playNotificationSound)
-    function playNotificationSound() { try { playNotifSound(); } catch (_) {} }
-
 
     // === УМНАЯ СИСТЕМА ВОСПРОИЗВЕДЕНИЯ ЗВУКА ===
     // === Разблокировка аудио (браузеры блокируют autoplay) ===
@@ -2269,7 +2246,7 @@
     ];
 
     let peerConnection = null; let localStream = null; let currentCallId = null; let callRef = null;
-    let isCallMicMuted = false; let isCallCamOff = false; let isSpeakerOn = true; let currentCallIsVideo = false; let currentFacingMode = 'user';
+    let isCallMicMuted = false; let isCallCamOff = false; let isSpeakerOn = false; let currentCallIsVideo = false; let currentFacingMode = 'user';
 
     const rtcConfig = { 
         iceServers: [
@@ -2449,13 +2426,6 @@
     });
 
     async function requestNotifications() {
-        try {
-            if (window.NexagramAndroid && typeof window.NexagramAndroid.requestPermission === 'function') {
-                window.NexagramAndroid.requestPermission();
-                showToast("Уведомления приложения");
-                return;
-            }
-        } catch (_) {}
         if (!("Notification" in window)) {
             alert("Ваш браузер не поддерживает уведомления.");
             return;
@@ -2539,40 +2509,23 @@
     }
 
     /** Пуш получателю: ntfy (работает в РФ без Google) + локальные уведомления у нас уже есть */
-        function notifyUserPush(userId, title, body) {
+    function notifyUserPush(userId, title, body) {
         if (!userId || (me && userId === me.id)) return;
         try {
             const u = (db.users || []).find(x => x && x.id === userId);
-            if (!u) return;
-            const topic = (u.ntfyTopic || '').trim();
-            if (!topic) {
-                console.log('ntfy: у получателя нет темы', userId);
-                return;
-            }
-            const payload = {
-                topic: topic,
-                title: String(title || 'Nexagram').slice(0, 100),
-                message: String(body || 'Новое сообщение').slice(0, 500),
-                click: 'https://web.nexagram.site/',
-                tags: ['speech_balloon'],
-                priority: 4
-            };
-            // JSON API (надёжнее, чем POST на /topic)
-            fetch('https://ntfy.sh/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).then(r => {
-                if (!r.ok) console.warn('ntfy status', r.status);
-                else console.log('ntfy ok →', topic);
-            }).catch(err => {
-                console.warn('ntfy fetch fail', err);
-                // запасной простой POST
+            const topic = u && u.ntfyTopic;
+            if (topic) {
                 fetch('https://ntfy.sh/' + encodeURIComponent(topic), {
                     method: 'POST',
-                    body: payload.message
+                    headers: {
+                        'Title': String(title || 'Nexagram').slice(0, 100),
+                        'Click': 'https://web.nexagram.site/',
+                        'Tags': 'speech_balloon',
+                        'Priority': 'high'
+                    },
+                    body: String(body || '').slice(0, 500)
                 }).catch(() => {});
-            });
+            }
         } catch (e) { console.warn('notifyUserPush', e); }
     }
 
@@ -2800,7 +2753,7 @@
         currentCallId = callId; currentCallIsVideo = isVideoCall; const caller = db.users.find(u => u.id === callerId);
         applyCallBackground(); 
         document.getElementById('callAvatar').innerHTML = getAvatarHtml(caller.avatarType, caller.avatarValue); document.getElementById('callName').textContent = caller.name; document.getElementById('callNameSmall').textContent = caller.name; document.getElementById('minCallInfo').textContent = `${caller.name} · Ожидание...`;
-        setCallStatusText(t('call_incoming')); isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
+        setCallStatusText(t('call_incoming')); isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = false;
         const overlay = document.getElementById('callOverlay'); 
         overlay.classList.remove('closing');
         overlay.classList.add('active'); 
@@ -2934,7 +2887,7 @@
         document.getElementById('callNameSmall').textContent = targetUser.name;
         document.getElementById('minCallInfo').textContent = targetUser.name + ' · ' + t('call_waiting');
         setCallStatusText(t('call_calling'));
-        isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
+        isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = false;
 
         const overlay = document.getElementById('callOverlay');
         overlay.classList.remove('closing'); overlay.classList.add('active');
@@ -3040,7 +2993,7 @@
         stopAllRingtones();
         currentCallIsVideo = isVideo;
         setCallStatusText(t('call_connecting'));
-        isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = true;
+        isCallMicMuted = false; isCallCamOff = false; isSpeakerOn = false;
         renderCallControls();
 
         try {
@@ -3224,6 +3177,7 @@
                 tryPlay();
                 setTimeout(tryPlay, 200);
                 setTimeout(tryPlay, 800);
+                try { applySpeakerRoute(); } catch (_) {}
             }
             // WebAudio fallback (некоторые WebView)
             try {
@@ -3250,21 +3204,61 @@
         }
     }
 
+    async function findEarpieceSinkId() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return '';
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const outs = devices.filter(d => d.kind === 'audiooutput');
+            // Ищем разговорный / communications / earpiece / receiver
+            const prefer = outs.find(d => {
+                const l = (d.label || '').toLowerCase();
+                return /earpiece|receiver|telephony|communications|handset|телефон|разговор|слухов/.test(l)
+                    || d.deviceId === 'communications';
+            });
+            if (prefer) return prefer.deviceId;
+            // если есть несколько выходов — не берём "speaker"/"громк"
+            const nonSpeaker = outs.find(d => {
+                const l = (d.label || '').toLowerCase();
+                return l && !/speaker|loud|громк|динамик|default/.test(l);
+            });
+            if (nonSpeaker) return nonSpeaker.deviceId;
+            return '';
+        } catch (e) {
+            console.warn('enumerate audiooutput', e);
+            return '';
+        }
+    }
+
+    async function applySpeakerRoute() {
+        const rVid = document.getElementById('remoteVideo');
+        const rAud = document.getElementById('remoteAudio');
+        const vol = isSpeakerOn ? 1 : 0.85;
+        if (rVid) rVid.volume = vol;
+        if (rAud) rAud.volume = vol;
+
+        const sink = isSpeakerOn ? 'default' : (await findEarpieceSinkId());
+        const applySink = (el) => {
+            if (!el || typeof el.setSinkId !== 'function') return;
+            // пустой deviceId на части Android = communications/earpiece
+            const id = isSpeakerOn ? 'default' : (sink || '');
+            el.setSinkId(id).catch(e => {
+                // fallback: default
+                if (!isSpeakerOn) {
+                    el.setSinkId('default').catch(() => {});
+                }
+                console.log('setSinkId', e);
+            });
+        };
+        applySink(rVid);
+        applySink(rAud);
+    }
+
     function toggleCallSpeaker() {
         isSpeakerOn = !isSpeakerOn;
         renderCallControls();
-        const rVid = document.getElementById('remoteVideo');
-        const rAud = document.getElementById('remoteAudio');
-        // Громкость
-        if (rVid) rVid.volume = isSpeakerOn ? 1 : 0.3;
-        if (rAud) rAud.volume = isSpeakerOn ? 1 : 0.3;
-        if (typeof rVid.setSinkId === 'function') {
-            rVid.setSinkId(isSpeakerOn ? 'default' : '').catch(e => console.log(e));
-        }
-        if (typeof rAud.setSinkId === 'function') {
-            rAud.setSinkId(isSpeakerOn ? 'default' : '').catch(e => console.log(e));
-        }
+        applySpeakerRoute();
     }
+
 
     let callInterval; let callSeconds = 0;
     function startCallTimer() { clearInterval(callInterval); callSeconds = 0; callInterval = setInterval(() => { callSeconds++; const m = Math.floor(callSeconds / 60); const s = (callSeconds % 60).toString().padStart(2, '0'); const timeStr = `${m}:${s}`; setCallStatusText(`Разговор (${timeStr})`); const name = document.getElementById('callNameSmall').textContent; document.getElementById('minCallInfo').textContent = `${name} · ${m.toString().padStart(2, '0')}:${s}`; }, 1000); }
@@ -3548,102 +3542,60 @@
     }
 
     async function doRegister() {
-        if (!isDbReady) return alert('Подождите, идет подключение к серверу...');
-        ensureHelper();
-
-        const emailVal = (document.getElementById('regEmail') || {}).value || '';
-        const userVal = (document.getElementById('regUsername') || {}).value || '';
-        const passwordVal = (document.getElementById('regPassword') || {}).value || '';
-        const confirmVal = (document.getElementById('regConfirm') || {}).value || '';
-
-        const email = String(emailVal).trim().toLowerCase();
-        const username = String(userVal).trim().toLowerCase().replace(/^@+/, '').replace(/\s+/g, '_');
-
-        if (!email || email.indexOf('@') < 1) return showToast('Введите корректный Email');
-        if (!username || username.length < 3) return showToast('Юз от 3 символов');
-        if (username.includes('@')) return showToast('Юз без @');
-        if (!/^[a-z0-9_\.]+$/i.test(username)) return showToast('Юз: только латиница, цифры, _ и .');
-        if (!passwordVal || passwordVal.length < 6) return showToast('Пароль от 6 символов');
+        if (!isDbReady) return alert('Подождите, идет подключение к серверу...'); ensureHelper();
+        
+        const loginVal = document.getElementById('regUsername').value.trim();
+        const passwordVal = document.getElementById('regPassword').value;
+        const confirmVal = document.getElementById('regConfirm').value;
+        const secretVal = document.getElementById('regSecret').value.trim();
+        
+        if (!loginVal) return showToast('Введите логин или почту');
+        const loginLower = loginVal.toLowerCase(); const isEmail = loginLower.includes('@');
+        
+        if (!passwordVal || passwordVal.length < 4) return showToast('Пароль от 4 символов');
         if (passwordVal !== confirmVal) return showToast('Пароли не совпадают!');
-        if (db.users.find(u => u && u.login === username)) return showToast('Этот юз уже занят');
-        if (db.users.find(u => u && u.email && String(u.email).toLowerCase() === email)) return showToast('Email уже зарегистрирован');
-
-        try {
-            document.getElementById('loader').style.display = 'flex';
-            setTimeout(() => document.getElementById('loader').style.opacity = '1', 50);
-
-            const userCred = await firebase.auth().createUserWithEmailAndPassword(email, passwordVal);
-            const fUser = userCred.user;
+        if (!isEmail && (!secretVal || secretVal.length < 3)) return showToast('Секретное слово от 3 символов');
+        if (!isEmail && db.users.find(u => u.login === loginLower)) return showToast('Логин занят');
+        
+        if (isEmail) {
+            let customLogin = prompt("Уникальный логин (без @):");
+            if (!customLogin || customLogin.trim().length < 3 || customLogin.includes('@')) { return showToast('Некорректный логин.'); }
+            customLogin = customLogin.trim().toLowerCase();
+            if (db.users.find(u => u.login === customLogin)) { return showToast('Этот логин занят.'); }
 
             try {
-                await fUser.sendEmailVerification();
-            } catch (ve) {
-                console.warn('sendEmailVerification', ve);
-            }
-
-            const user = {
-                id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                login: username,
-                email: email,
-                name: username,
-                avatarType: 'emoji',
-                avatarValue: builtInAvatars[Math.floor(Math.random() * builtInAvatars.length)],
-                friends: [],
-                friendRequests: [],
-                password: hashString('firebase_auth'),
-                secretWord: hashString('firebase_auth'),
-                lastSeen: Date.now(),
-                isBanned: false,
-                firebaseUid: fUser.uid,
-                emailOk: false
-            };
-            db.users.push(user);
-            try {
-                await rtdb.ref('/dg_app_data/users').set(db.users);
-            } catch (writeErr) {
-                console.warn('users write', writeErr);
-                try {
-                    await rtdb.ref('/dg_app_data/users/' + (db.users.length - 1)).set(user);
-                } catch (e2) {
-                    showToast('База: нет прав на запись users. Обновите Rules в Firebase.');
-                    throw writeErr;
+                document.getElementById('loader').style.display = 'flex'; setTimeout(()=>document.getElementById('loader').style.opacity = '1', 50);
+                const userCred = await firebase.auth().createUserWithEmailAndPassword(loginLower, passwordVal);
+                const fUser = userCred.user;
+                
+                let user = db.users.find(u => u.email === loginLower);
+                if (!user) {
+                    user = { id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), login: customLogin, email: loginLower, name: customLogin, avatarType: 'emoji', avatarValue: builtInAvatars[Math.floor(Math.random() * builtInAvatars.length)], friends: [], friendRequests: [], password: hashString('firebase_auth'), secretWord: hashString(secretVal || 'firebase_auth'), lastSeen: Date.now(), isBanned: false, firebaseUid: fUser.uid, emailOk: false };
+                    db.users.push(user);
+                    try {
+                        await rtdb.ref('/dg_app_data/users').set(db.users);
+                    } catch (writeErr) {
+                        console.warn('users write', writeErr);
+                        // пробуем записать только новый элемент по индексу
+                        try {
+                            await rtdb.ref('/dg_app_data/users/' + (db.users.length - 1)).set(user);
+                        } catch (e2) {
+                            showToast('База: нет прав на запись users. Обновите Rules в Firebase.');
+                            throw writeErr;
+                        }
+                    }
                 }
-            }
-
-            document.getElementById('loader').style.opacity = '0';
-            setTimeout(() => document.getElementById('loader').style.display = 'none', 300);
-
-            // Не входим сразу — сначала письмо от Firebase, вход вручную
-            try { await firebase.auth().signOut(); } catch (_) {}
-            try { localStorage.removeItem('Nexagram_Session_UID'); } catch (_) {}
-
-            showToast('Аккаунт создан. Проверьте почту: ' + email);
-            try {
-                alert('Аккаунт создан.\n\nНа ' + email + ' отправлено письмо от Firebase.\nПодтвердите почту, затем войдите с Email и паролем.');
-            } catch (_) {}
-
-            // Переключаем на вкладку входа и подставляем email
-            try {
-                if (typeof switchAuthTab === 'function') switchAuthTab('login');
-                const li = document.getElementById('loginUsername');
-                if (li) li.value = email;
-                const lp = document.getElementById('loginPassword');
-                if (lp) lp.value = '';
-            } catch (_) {}
-        } catch (error) {
-            document.getElementById('loader').style.opacity = '0';
-            setTimeout(() => document.getElementById('loader').style.display = 'none', 300);
-            const code = (error && error.code) || '';
-            let msg = (error && error.message) || String(error);
-            if (code === 'auth/email-already-in-use') msg = 'Email уже используется';
-            else if (code === 'auth/invalid-email') msg = 'Некорректный Email';
-            else if (code === 'auth/weak-password') msg = 'Слишком слабый пароль (мин. 6)';
-            showToast('Ошибка: ' + msg);
+                try { await fUser.sendEmailVerification(); } catch (ve) { console.warn(ve); }
+                document.getElementById('loader').style.opacity = '0'; setTimeout(()=>document.getElementById('loader').style.display='none', 300);
+                showToast('Аккаунт создан');
+                proceedWithLogin(user);
+            } catch (error) { document.getElementById('loader').style.opacity = '0'; setTimeout(()=>document.getElementById('loader').style.display='none', 300); return showToast('Ошибка: ' + error.message); }
+        } else {
+            me = { id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), login: loginLower, name: loginVal, avatarType: 'emoji', avatarValue: builtInAvatars[Math.floor(Math.random() * builtInAvatars.length)], friends: [], friendRequests: [], password: hashString(passwordVal), secretWord: hashString(secretVal), lastSeen: Date.now(), isBanned: false };
+            db.users.push(me); rtdb.ref('/dg_app_data/users').set(db.users); proceedWithLogin(me);
         }
     }
-
     
-
     function proceedWithLogin(user) {
         me = user; localStorage.setItem('Nexagram_Session_UID', me.id);
         // Сохраняем аккаунт в список для быстрого входа (Sketchware / multi-account)
