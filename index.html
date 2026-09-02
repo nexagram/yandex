@@ -2910,6 +2910,7 @@
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            try { scheduleSpeakerRouteRetries(); } catch (_) {}
 
             peerConnection.ontrack = (event) => handleRemoteTrack(event);
             peerConnection.onicecandidate = event => {
@@ -3009,6 +3010,7 @@
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            try { scheduleSpeakerRouteRetries(); } catch (_) {}
 
             peerConnection.ontrack = (event) => handleRemoteTrack(event);
             peerConnection.onicecandidate = event => {
@@ -3163,13 +3165,18 @@
             if (rAud) {
                 rAud.srcObject = stream;
                 rAud.muted = false;
-                rAud.volume = isSpeakerOn ? 1 : 0.5;
+                rAud.volume = 1;
                 rAud.setAttribute('playsinline', '');
+                rAud.setAttribute('webkit-playsinline', '');
                 rAud.setAttribute('autoplay', '');
+                // Не дублируем звук через WebAudio в режиме трубки — иначе всегда громкий динамик
+                disconnectRemoteWebAudio();
                 const tryPlay = () => {
                     const p = rAud.play();
                     if (p && p.catch) p.catch(e => {
                         console.warn('remoteAudio play:', e);
+                        // если <audio> не играет — только тогда WebAudio (громкая связь)
+                        if (isSpeakerOn) connectRemoteWebAudio(stream);
                         const toast = document.getElementById('audio-unlock-toast');
                         if (toast) { toast.style.display = 'block'; toast.classList.add('shake'); }
                     });
@@ -3177,16 +3184,11 @@
                 tryPlay();
                 setTimeout(tryPlay, 200);
                 setTimeout(tryPlay, 800);
-                try { applySpeakerRoute(); } catch (_) {}
+                // маршрутизация sink (earpiece / speaker)
+                try { scheduleSpeakerRouteRetries(); } catch (_) { try { applySpeakerRoute(); } catch (_) {} }
+            } else if (isSpeakerOn) {
+                connectRemoteWebAudio(stream);
             }
-            // WebAudio fallback (некоторые WebView)
-            try {
-                if (audioCtx && !window._remoteAudioConnected) {
-                    const srcNode = audioCtx.createMediaStreamSource(stream);
-                    srcNode.connect(audioCtx.destination);
-                    window._remoteAudioConnected = srcNode;
-                }
-            } catch (e) { console.warn('webaudio remote', e); }
             startVoiceVisualizer(stream);
         } else if (track.kind === 'video') {
             let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
@@ -3204,61 +3206,164 @@
         }
     }
 
-    async function findEarpieceSinkId() {
+        async function findEarpieceSinkId() {
         try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return '';
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return null;
             const devices = await navigator.mediaDevices.enumerateDevices();
             const outs = devices.filter(d => d.kind === 'audiooutput');
-            // Ищем разговорный / communications / earpiece / receiver
-            const prefer = outs.find(d => {
+            window._audioOutputsCache = outs;
+            // Android Chrome: deviceId "communications" = разговорный / telephony
+            const comm = outs.find(d => d.deviceId === 'communications');
+            if (comm) return 'communications';
+            const byLabel = outs.find(d => {
                 const l = (d.label || '').toLowerCase();
-                return /earpiece|receiver|telephony|communications|handset|телефон|разговор|слухов/.test(l)
-                    || d.deviceId === 'communications';
+                return /earpiece|receiver|telephony|handset|phone|телефон|разговор|слухов|communication/.test(l);
             });
-            if (prefer) return prefer.deviceId;
-            // если есть несколько выходов — не берём "speaker"/"громк"
-            const nonSpeaker = outs.find(d => {
+            if (byLabel) return byLabel.deviceId;
+            const nonSp = outs.find(d => {
                 const l = (d.label || '').toLowerCase();
-                return l && !/speaker|loud|громк|динамик|default/.test(l);
+                return l && !/speaker|loud|громк|динамик|hdmi|usb|bluetooth|headset|headphones|наушн/.test(l)
+                    && d.deviceId !== 'default';
             });
-            if (nonSpeaker) return nonSpeaker.deviceId;
-            return '';
+            if (nonSp) return nonSp.deviceId;
+            return null;
         } catch (e) {
-            console.warn('enumerate audiooutput', e);
-            return '';
+            console.warn('findEarpieceSinkId', e);
+            return null;
         }
     }
 
-    async function applySpeakerRoute() {
-        const rVid = document.getElementById('remoteVideo');
-        const rAud = document.getElementById('remoteAudio');
-        const vol = isSpeakerOn ? 1 : 0.85;
-        if (rVid) rVid.volume = vol;
-        if (rAud) rAud.volume = vol;
+    function disconnectRemoteWebAudio() {
+        try {
+            if (window._remoteAudioConnected) {
+                window._remoteAudioConnected.disconnect();
+                window._remoteAudioConnected = null;
+            }
+        } catch (_) {}
+    }
 
-        const sink = isSpeakerOn ? 'default' : (await findEarpieceSinkId());
-        const applySink = (el) => {
-            if (!el || typeof el.setSinkId !== 'function') return;
-            // пустой deviceId на части Android = communications/earpiece
-            const id = isSpeakerOn ? 'default' : (sink || '');
-            el.setSinkId(id).catch(e => {
-                // fallback: default
-                if (!isSpeakerOn) {
-                    el.setSinkId('default').catch(() => {});
-                }
-                console.log('setSinkId', e);
-            });
-        };
-        applySink(rVid);
-        applySink(rAud);
+    function connectRemoteWebAudio(stream) {
+        try {
+            disconnectRemoteWebAudio();
+            if (!stream || !isSpeakerOn) return;
+            unlockAudioContext();
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+            const srcNode = audioCtx.createMediaStreamSource(stream);
+            srcNode.connect(audioCtx.destination);
+            window._remoteAudioConnected = srcNode;
+        } catch (e) {
+            console.warn('connectRemoteWebAudio', e);
+        }
+    }
+
+    function ensureFreshRemoteAudioEl() {
+        let rAud = document.getElementById('remoteAudio');
+        if (!rAud) {
+            rAud = document.createElement('audio');
+            rAud.id = 'remoteAudio';
+            document.body.appendChild(rAud);
+        }
+        // На Android Chrome новый элемент лучше принимает setSinkId
+        try {
+            rAud.pause();
+            rAud.removeAttribute('src');
+            rAud.srcObject = null;
+        } catch (_) {}
+        const neu = document.createElement('audio');
+        neu.id = 'remoteAudio';
+        neu.autoplay = true;
+        neu.playsInline = true;
+        neu.setAttribute('playsinline', '');
+        neu.setAttribute('webkit-playsinline', '');
+        neu.setAttribute('autoplay', '');
+        neu.volume = 1;
+        neu.muted = false;
+        try {
+            if (rAud.parentNode) rAud.parentNode.replaceChild(neu, rAud);
+            else document.body.appendChild(neu);
+        } catch (_) {
+            document.body.appendChild(neu);
+        }
+        return neu;
+    }
+
+    async function setElementSink(el, preferEarpiece) {
+        if (!el || typeof el.setSinkId !== 'function') return false;
+        const tryIds = [];
+        if (preferEarpiece) {
+            let sink = null;
+            try { sink = await findEarpieceSinkId(); } catch (_) {}
+            if (sink) tryIds.push(sink);
+            tryIds.push('communications');
+            // пустая строка — на части Android WebView уходит в earpiece
+            tryIds.push('');
+        } else {
+            tryIds.push('default');
+        }
+        for (const id of tryIds) {
+            try {
+                await el.setSinkId(id);
+                window._lastSinkId = id;
+                console.log('[Nexagram] setSinkId ok:', id === '' ? '(empty)' : id);
+                return true;
+            } catch (e) {
+                console.log('[Nexagram] setSinkId fail:', id, e && e.message);
+            }
+        }
+        return false;
+    }
+
+    async function applySpeakerRoute() {
+        let rAud = document.getElementById('remoteAudio');
+        const rVid = document.getElementById('remoteVideo');
+        const stream = (rAud && rAud.srcObject) ? rAud.srcObject : null;
+
+        if (!isSpeakerOn) {
+            disconnectRemoteWebAudio();
+            // пересоздаём <audio> + ставим sink до и после play (Android)
+            if (stream) {
+                rAud = ensureFreshRemoteAudioEl();
+                rAud.srcObject = stream;
+                await setElementSink(rAud, true);
+                try { await rAud.play(); } catch (e) { console.warn('remote play', e); }
+                // повтор после play — частый фикс Chrome Android
+                await setElementSink(rAud, true);
+                try {
+                    rAud.pause();
+                    await rAud.play();
+                } catch (_) {}
+                await setElementSink(rAud, true);
+            } else if (rAud) {
+                await setElementSink(rAud, true);
+            }
+            if (rVid) await setElementSink(rVid, true);
+        } else {
+            if (rAud) {
+                rAud.volume = 1;
+                rAud.muted = false;
+                await setElementSink(rAud, false);
+                try { await rAud.play(); } catch (_) {}
+            }
+            if (rVid) await setElementSink(rVid, false);
+            if (stream) connectRemoteWebAudio(stream);
+        }
+    }
+
+    function scheduleSpeakerRouteRetries() {
+        [0, 150, 400, 1000, 2000].forEach(ms => {
+            setTimeout(() => { try { applySpeakerRoute(); } catch (_) {} }, ms);
+        });
     }
 
     function toggleCallSpeaker() {
         isSpeakerOn = !isSpeakerOn;
         renderCallControls();
         applySpeakerRoute();
+        try {
+            showToast(isSpeakerOn ? 'Громкая связь' : 'Разговорный динамик');
+        } catch (_) {}
     }
-
 
     let callInterval; let callSeconds = 0;
     function startCallTimer() { clearInterval(callInterval); callSeconds = 0; callInterval = setInterval(() => { callSeconds++; const m = Math.floor(callSeconds / 60); const s = (callSeconds % 60).toString().padStart(2, '0'); const timeStr = `${m}:${s}`; setCallStatusText(`Разговор (${timeStr})`); const name = document.getElementById('callNameSmall').textContent; document.getElementById('minCallInfo').textContent = `${name} · ${m.toString().padStart(2, '0')}:${s}`; }, 1000); }
