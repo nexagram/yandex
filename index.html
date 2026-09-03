@@ -5845,9 +5845,9 @@ async function callNvidiaNemotron(messages, options = {}) {
             max_tokens: options.max_tokens ?? 2048,
             stream: false
         };
-        // Режим мышления (reasoning)
+        // Режим мышления — поля кладём напрямую в body (не extra_body!)
         if (options.enable_thinking !== false) {
-            body.extra_body = { chat_template_kwargs: { enable_thinking: true } };
+            body.chat_template_kwargs = { enable_thinking: true };
         }
         const res = await fetch(NVIDIA_BASE_URL, {
             method: 'POST',
@@ -5860,6 +5860,11 @@ async function callNvidiaNemotron(messages, options = {}) {
         });
         if (!res.ok) {
             const errText = await res.text();
+            // Повтор при 503 (перегрузка)
+            if (res.status === 503 && !options._retried) {
+                await new Promise(r => setTimeout(r, 2500));
+                return callNvidiaNemotron(messages, { ...options, _retried: true, enable_thinking: false });
+            }
             throw new Error(`NVIDIA ${res.status}: ${errText}`);
         }
         const data = await res.json();
