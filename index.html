@@ -5832,7 +5832,7 @@ async function uploadToCloud(file) {
 // NVIDIA Nemotron 3 Ultra 550B — встроенная нейросеть
 // ============================================================
 const NVIDIA_API_KEY = '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';
-const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const NVIDIA_BASE_URL = 'https://round-waterfall-6295.tr-kolesnik.workers.dev';  // Cloudflare Worker proxy (CORS)
 const NVIDIA_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
 
 async function callNvidiaNemotron(messages, options = {}) {
@@ -5849,7 +5849,7 @@ async function callNvidiaNemotron(messages, options = {}) {
         if (options.enable_thinking !== false) {
             body.extra_body = { chat_template_kwargs: { enable_thinking: true } };
         }
-        const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+        const res = await fetch(NVIDIA_BASE_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
