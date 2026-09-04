@@ -4721,29 +4721,28 @@ async function uploadToCloud(file) {
                 // Вызываем NVIDIA
                 (async () => {
                     try {
-                        // === Генерация картинки (Stable Diffusion 3.5 Large) ===
-                        if (isImageGenRequest(userText)) {
+                        // === Картинка через SD 3.5 Large ===
+                        if (typeof isImageGenRequest === 'function' && isImageGenRequest(userText)) {
                             const imgPrompt = extractImagePrompt(userText);
                             showToast('🎨 Искра рисует (SD 3.5 Large)…');
                             try {
                                 const imgUrl = await generateImageWithNvidia(imgPrompt);
                                 try { typingRef.remove(); } catch(e) {}
                                 if (imgUrl) {
-                                    const aiImgMsg = {
+                                    const cIdx = db.chats.findIndex(c => c.id === db.chats[chatIndex].id);
+                                    const idx = cIdx > -1 ? cIdx : chatIndex;
+                                    if (!db.chats[idx].msgs) db.chats[idx].msgs = [];
+                                    db.chats[idx].msgs.push({
                                         uid: 'ai_iskra',
                                         type: 'image',
                                         url: imgUrl,
                                         txt: '🎨 ' + imgPrompt.slice(0, 120),
                                         time: Date.now(),
                                         reactions: {}
-                                    };
-                                    const cIdx = db.chats.findIndex(c => c.id === db.chats[chatIndex].id);
-                                    const idx = cIdx > -1 ? cIdx : chatIndex;
-                                    if (!db.chats[idx].msgs) db.chats[idx].msgs = [];
-                                    db.chats[idx].msgs.push(aiImgMsg);
+                                    });
                                     db.chats[idx].msgs.push({
                                         uid: 'ai_iskra',
-                                        txt: 'Готово! ✨ Нарисовала по запросу: «' + imgPrompt.slice(0, 80) + (imgPrompt.length > 80 ? '…' : '') + '»',
+                                        txt: 'Готово! ✨ «' + imgPrompt.slice(0, 80) + (imgPrompt.length > 80 ? '…' : '') + '»',
                                         time: Date.now() + 1,
                                         reactions: {}
                                     });
@@ -4757,26 +4756,25 @@ async function uploadToCloud(file) {
                                 console.error('AI image error', imgErr);
                                 try { typingRef.remove(); } catch(e) {}
                                 showToast('Не удалось нарисовать: ' + (imgErr.message || imgErr));
-                                const aiMsg = {
-                                    uid: 'ai_iskra',
-                                    txt: '😔 Не получилось сгенерировать картинку сейчас. Попробуй чуть позже или переформулируй.\n\n' + String(imgErr.message || imgErr).slice(0, 120),
-                                    time: Date.now(),
-                                    reactions: {}
-                                };
                                 const cIdx = db.chats.findIndex(c => c.id === db.chats[chatIndex].id);
                                 const idx = cIdx > -1 ? cIdx : chatIndex;
                                 if (!db.chats[idx].msgs) db.chats[idx].msgs = [];
-                                db.chats[idx].msgs.push(aiMsg);
+                                db.chats[idx].msgs.push({
+                                    uid: 'ai_iskra',
+                                    txt: '😔 Не получилось сгенерировать картинку сейчас. Попробуй чуть позже или переформулируй.\n\n' + String(imgErr.message || imgErr).slice(0, 140),
+                                    time: Date.now(),
+                                    reactions: {}
+                                });
                                 rtdb.ref(`/dg_app_data/chats/${idx}/msgs`).set(db.chats[idx].msgs);
                                 if (activeChat && activeChat.id === db.chats[idx].id) renderMsgs();
                             }
                             return;
                         }
 
-                        const systemPrompt = 'Ты — Искра, дружелюбный и умный ИИ-ассистент мессенджера Nexagram. Тебя создали на базе NVIDIA Nemotron 3 Ultra. Отвечай на русском языке, по делу, с лёгким характером. Можно использовать эмодзи. Не говори, что ты языковая модель OpenAI или ChatGPT. Если пользователь просит нарисовать/сгенерировать картинку — система сама обработает запрос через Stable Diffusion 3.5 Large и отправит изображение; тебе в этом случае отвечать не нужно.';
+                        const systemPrompt = 'Ты — Искра, дружелюбный и умный ИИ-ассистент мессенджера Nexagram. Тебя создали на базе NVIDIA Nemotron 3 Ultra. Отвечай на русском языке, по делу, с лёгким характером. Можно использовать эмодзи. Не говори, что ты языковая модель OpenAI или ChatGPT. Если пользователь просит нарисовать картинку — система сама сгенерирует изображение через Stable Diffusion 3.5 Large; тебе отвечать не нужно.';
                         const messages = [
                             { role: 'system', content: systemPrompt },
-                            ...recent.slice(0, -1), // история
+                            ...recent.slice(0, -1),
                             { role: 'user', content: userText }
                         ];
                         const result = await callNvidiaNemotron(messages, { max_tokens: 1500, temperature: 0.75 });
@@ -6051,13 +6049,12 @@ async function uploadToCloud(file) {
 
 
 // ============================================================
-// NVIDIA Image Generation — Stable Diffusion 3.5 Large (для Искры)
+// NVIDIA Image Generation — Stable Diffusion 3.5 Large (через Worker)
 // ============================================================
 const NVIDIA_IMAGE_API_KEY = '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';
-// SD 3.5 Large на NVIDIA API
-const NVIDIA_IMAGE_URL = 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large';
-// запасной вариант URL (если 404)
-const NVIDIA_IMAGE_URL_ALT = 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3_5-large';
+// Тот же Cloudflare Worker, что и для текста (обход CORS).
+// Worker должен уметь проксировать image-запросы — см. комментарий внизу файла.
+const NVIDIA_IMAGE_PROXY = 'https://round-waterfall-6295.tr-kolesnik.workers.dev';
 
 function isImageGenRequest(text) {
     const t = (text || '').toLowerCase().trim();
@@ -6077,38 +6074,37 @@ function extractImagePrompt(text) {
 }
 
 async function generateImageWithNvidia(prompt) {
-    const body = {
+    // Тело для SD 3.5 Large / generic NIM image API
+    const imageBody = {
         prompt: String(prompt || '').slice(0, 9000),
         negative_prompt: '',
         cfg_scale: 4.5,
         seed: Math.floor(Math.random() * 2147483647),
         steps: 28,
-        mode: 'base'
+        mode: 'base',
+        // флаг для Worker: это image-gen, не chat
+        _nexagram_image: true,
+        _target: 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large'
     };
-    async function doFetch(url) {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + NVIDIA_IMAGE_API_KEY,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-        return res;
-    }
-    let res = await doFetch(NVIDIA_IMAGE_URL);
-    if (res.status === 404) {
-        res = await doFetch(NVIDIA_IMAGE_URL_ALT);
-    }
-    // ещё один распространённый путь для NIM-style
-    if (res.status === 404) {
-        res = await doFetch('https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large/infer');
-    }
+
+    const res = await fetch(NVIDIA_IMAGE_PROXY, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + NVIDIA_IMAGE_API_KEY,
+            'Accept': 'application/json',
+            // Worker может читать этот заголовок
+            'X-Nexagram-Mode': 'image',
+            'X-Target-URL': 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large'
+        },
+        body: JSON.stringify(imageBody)
+    });
+
     if (!res.ok) {
         const errText = await res.text().catch(() => '');
         throw new Error('NVIDIA SD3.5 ' + res.status + ': ' + (errText || res.statusText).slice(0, 220));
     }
+
     const data = await res.json();
     let b64 = null;
     if (data.artifacts && data.artifacts[0]) {
@@ -6120,11 +6116,13 @@ async function generateImageWithNvidia(prompt) {
     if (!b64 && typeof data.image === 'string') b64 = data.image;
     if (!b64 && Array.isArray(data.images) && data.images[0]) b64 = data.images[0];
     if (!b64 && data.output && data.output[0]) b64 = data.output[0];
-    if (!b64) throw new Error('В ответе NVIDIA нет изображения: ' + JSON.stringify(data).slice(0, 150));
-    if (typeof b64 === 'string' && b64.startsWith('http')) {
-        return b64;
-    }
+    // если worker вернул ошибку NVIDIA как JSON
+    if (!b64 && data.error) throw new Error(String(data.error).slice(0, 200));
+    if (!b64) throw new Error('В ответе нет изображения: ' + JSON.stringify(data).slice(0, 180));
+
+    if (typeof b64 === 'string' && b64.startsWith('http')) return b64;
     if (typeof b64 === 'string' && b64.indexOf('base64,') >= 0) b64 = b64.split('base64,')[1];
+
     const binary = atob(b64.replace(/\s/g, ''));
     const arr = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
