@@ -4736,13 +4736,13 @@ async function uploadToCloud(file) {
                             } catch (imgErr) {
                                 console.error('AI image error', imgErr);
                                 try { typingRef.remove(); } catch(e) {}
-                                showToast('Не удалось нарисовать: ' + (imgErr.message || imgErr));
+                                showToast('Не удалось нарисовать');
                                 const cIdx = db.chats.findIndex(c => c.id === db.chats[chatIndex].id);
                                 const idx = cIdx > -1 ? cIdx : chatIndex;
                                 if (!db.chats[idx].msgs) db.chats[idx].msgs = [];
                                 db.chats[idx].msgs.push({
                                     uid: 'ai_iskra',
-                                    txt: '😔 Не получилось сгенерировать картинку.\n\n' + String(imgErr.message || imgErr).slice(0, 160),
+                                    txt: '😔 Не получилось сгенерировать картинку. Попробуй ещё раз.',
                                     time: Date.now(), reactions: {}
                                 });
                                 rtdb.ref(`/dg_app_data/chats/${idx}/msgs`).set(db.chats[idx].msgs);
@@ -4751,7 +4751,7 @@ async function uploadToCloud(file) {
                             return;
                         }
 
-                        const systemPrompt = 'Ты — Искра, дружелюбный и умный ИИ-ассистент мессенджера Nexagram. Тебя создали на базе NVIDIA Nemotron 3 Ultra. Отвечай на русском языке, по делу, с лёгким характером. Можно использовать эмодзи. Не говори, что ты языковая модель OpenAI или ChatGPT. Если пользователь просит нарисовать картинку — система сама сгенерирует изображение; тебе отвечать не нужно.';
+                        const systemPrompt = 'Ты — Искра, дружелюбный и умный ИИ-ассистент мессенджера Nexagram. Тебя создали на базе NVIDIA Nemotron 3 Ultra. Отвечай на русском языке, по делу, с лёгким характером. Можно использовать эмодзи. Не говори, что ты языковая модель OpenAI или ChatGPT. Если пользователь просит нарисовать — система сама сгенерирует картинку.';
                         const messages = [
                             { role: 'system', content: systemPrompt },
                             ...recent.slice(0, -1),
@@ -6024,12 +6024,9 @@ async function uploadToCloud(file) {
 
 
 // ============================================================
-// Генерация картинок для Искры
-// NVIDIA hosted image gen на free-tier недоступен (только Downloadable NIM).
-// Используем Pollinations (бесплатно, без ключа) — работает из браузера.
+// Генерация картинок для Искры (Pollinations — бесплатно, без ключа)
+// NVIDIA hosted image gen на free-tier недоступен
 // ============================================================
-const NVIDIA_IMAGE_API_KEY = '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';
-
 function isImageGenRequest(text) {
     const t = (text || '').toLowerCase().trim();
     return /(?:^|\s)(нарисуй|нарисовать|нарисуйте|рисуй|нарисуем|сгенерируй\s*(?:картинк|изображен|рисунок|арт)|создай\s*(?:картинк|изображен|рисунок|арт)|generate\s+(?:an?\s+)?image|draw\s+(?:me\s+)?(?:a\s+)?|make\s+(?:me\s+)?(?:a\s+)?(?:picture|image|drawing)|paint\s+(?:me\s+)?)/i.test(t)
@@ -6048,27 +6045,21 @@ function extractImagePrompt(text) {
 }
 
 async function generateImageWithNvidia(prompt) {
-    // Pollinations — бесплатная генерация, прямой URL картинки
     const seed = Math.floor(Math.random() * 2147483647);
     const q = encodeURIComponent(String(prompt || 'image').slice(0, 400));
-    // nologo + enhance для лучшего качества
     const pollUrl = 'https://image.pollinations.ai/prompt/' + q +
         '?width=1024&height=1024&seed=' + seed + '&nologo=true&enhance=true&model=flux';
-
-    // Пробуем скачать и залить в Cloudinary (чтобы URL был постоянным в чате)
     try {
         const imgRes = await fetch(pollUrl);
         if (!imgRes.ok) throw new Error('Pollinations ' + imgRes.status);
         const blob = await imgRes.blob();
-        if (!blob || blob.size < 1000) throw new Error('Пустая картинка');
+        if (!blob || blob.size < 500) throw new Error('Пустая картинка');
         const file = new File([blob], 'iskra_' + Date.now() + '.jpg', { type: blob.type || 'image/jpeg' });
         const cloudUrl = await uploadToCloud(file);
         if (cloudUrl) return cloudUrl;
-        // если Cloudinary не сработал — отдаём прямой URL Pollinations
         return pollUrl;
     } catch (e) {
-        console.warn('Pollinations/upload fail, fallback URL', e);
-        // Всё равно вернём URL — <img> подтянет сам
+        console.warn('image gen fallback to direct URL', e);
         return pollUrl;
     }
 }
