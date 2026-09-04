@@ -489,6 +489,25 @@
         
         .mp-name { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .mp-status { text-align: center; color: var(--mut); font-size: 14px; margin-bottom: 24px; }
+        .verified-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #1d9bf0;
+            font-size: 16px;
+            line-height: 1;
+            vertical-align: middle;
+            margin-left: 3px;
+            flex-shrink: 0;
+        }
+        .verified-badge .material-symbols-outlined {
+            font-size: inherit;
+            font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20;
+        }
+        .list-name .verified-badge { font-size: 15px; }
+        .mp-name .verified-badge { font-size: 20px; }
+        #h-name .verified-badge { font-size: 16px; }
+
         .mp-actions { display: flex; justify-content: center; gap: 12px; margin-bottom: 24px; padding: 0 16px; }
         .mp-btn { background: var(--card); border-radius: 16px; width: 75px; height: 75px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--txt); font-size: 12px; font-weight: 500; gap: 6px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
         .mp-btn:active { transform: scale(0.95); background: var(--in); border-color: var(--brd); }
@@ -2508,6 +2527,7 @@
     }
     function getUserStatus(user) {
         if (!user) return '';
+        if (typeof isAIUser === 'function' && isAIUser(user)) return 'в сети';
         if (me && user.id === me.id) return 'в сети';
         // WhatsApp-стиль: если нас заблокировали — «был(а) давно»
         if (hasBlockedMe(user.id)) return 'был(а) давно';
@@ -2603,29 +2623,34 @@
                 friendRequests: [],
                 password: hashString('nexagram_ai_iskra_sys_2026'),
                 secretWord: hashString('nexagram_ai_iskra_sys_2026'),
-                lastSeen: Date.now(),
+                lastSeen: 'online',
                 isBanned: false,
-                isAI: true
+                isAI: true,
+                verified: true
             };
             db.users.push(ai);
             try { rtdb.ref('/dg_app_data/users').set(db.users); } catch (e) { console.warn('ensureAI', e); }
         } else {
-            // Обновляем имя/био если нужно
+            // Всегда в сети + галочка
+            ai.lastSeen = 'online';
+            ai.isAI = true;
+            if (!ai.verified) ai.verified = true;
             if (ai.name !== 'Искра') {
                 ai.name = 'Искра';
                 ai.bio = 'Искусственный интеллект Nexagram на базе NVIDIA Nemotron 3 Ultra. Спроси меня о чём угодно!';
                 ai.avatarType = 'emoji';
                 ai.avatarValue = 'auto_awesome';
-                ai.isAI = true;
-                const idx = db.users.findIndex(u => u.id === ai.id);
-                if (idx > -1) {
-                    try {
-                        rtdb.ref(`/dg_app_data/users/${idx}/name`).set('Искра');
-                        rtdb.ref(`/dg_app_data/users/${idx}/bio`).set(ai.bio);
-                        rtdb.ref(`/dg_app_data/users/${idx}/avatarValue`).set('auto_awesome');
-                        rtdb.ref(`/dg_app_data/users/${idx}/isAI`).set(true);
-                    } catch (e) {}
-                }
+            }
+            const idx = db.users.findIndex(u => u.id === ai.id);
+            if (idx > -1) {
+                try {
+                    rtdb.ref(`/dg_app_data/users/${idx}/lastSeen`).set('online');
+                    rtdb.ref(`/dg_app_data/users/${idx}/isAI`).set(true);
+                    rtdb.ref(`/dg_app_data/users/${idx}/verified`).set(true);
+                    rtdb.ref(`/dg_app_data/users/${idx}/name`).set(ai.name);
+                    rtdb.ref(`/dg_app_data/users/${idx}/bio`).set(ai.bio || '');
+                    rtdb.ref(`/dg_app_data/users/${idx}/avatarValue`).set(ai.avatarValue || 'auto_awesome');
+                } catch (e) {}
             }
         }
         return ai;
@@ -2663,6 +2688,61 @@
             return u === 'ai_iskra' || u === 'ai';
         }
         return !!(u.isAI || u.login === 'ai' || u.id === 'ai_iskra');
+    }
+
+    function verifiedBadgeHtml(obj) {
+        if (!obj || !obj.verified) return '';
+        return '<span class="verified-badge" title="Подтверждённый аккаунт"><span class="material-symbols-outlined">verified</span></span>';
+    }
+    function toggleUserVerified(userId) {
+        if (!me || !isSuperAdmin(me)) return showToast('Только админ');
+        const user = db.users.find(u => u.id === userId);
+        if (!user) return;
+        if (isAIUser(user)) return showToast('Искра всегда подтверждена');
+        user.verified = !user.verified;
+        const idx = db.users.findIndex(u => u.id === userId);
+        if (idx > -1) {
+            db.users[idx].verified = user.verified;
+            try { rtdb.ref('/dg_app_data/users/' + idx + '/verified').set(!!user.verified); } catch (e) {
+                try { rtdb.ref('/dg_app_data/users').set(db.users); } catch (_) {}
+            }
+        }
+        showToast(user.verified ? 'Галочка выдана: ' + (user.name || user.login) : 'Галочка снята');
+        try { renderAdminPanel(); } catch (_) {}
+        try { if (activeChat && activeChat.type === 'direct') viewChatInfo(); } catch (_) {}
+        try { renderChats(); renderFriends && renderFriends(); } catch (_) {}
+        // обновить шапку чата
+        try {
+            if (activeChat && activeChat.type === 'direct') {
+                const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+                if (oid === userId) {
+                    const hName = document.getElementById('h-name');
+                    if (hName) hName.innerHTML = escapeHtml(user.name) + verifiedBadgeHtml(user);
+                }
+            }
+        } catch (_) {}
+    }
+    function toggleChatVerified() {
+        if (!me || !activeChat) return;
+        if (!isSuperAdmin(me) && !(activeChat.admin === me.id || (activeChat.admins && activeChat.admins.includes(me.id)))) {
+            return showToast('Недостаточно прав');
+        }
+        // каналы/группы — супер-админ или создатель; галочка «официальный» — только супер-админ
+        if (!isSuperAdmin(me)) return showToast('Только глобальный админ может ставить галочку каналу');
+        activeChat.verified = !activeChat.verified;
+        const chatIndex = db.chats.findIndex(c => c.id === activeChat.id);
+        if (chatIndex > -1) {
+            db.chats[chatIndex].verified = !!activeChat.verified;
+            try { rtdb.ref('/dg_app_data/chats/' + chatIndex + '/verified').set(!!activeChat.verified); } catch (e) {
+                try { rtdb.ref('/dg_app_data/chats').set(db.chats); } catch (_) {}
+            }
+        }
+        showToast(activeChat.verified ? 'Канал/группа подтверждены' : 'Галочка снята');
+        try { viewChatInfo(); renderChats(); } catch (_) {}
+        try {
+            const hName = document.getElementById('h-name');
+            if (hName && activeChat) hName.innerHTML = escapeHtml(activeChat.name) + verifiedBadgeHtml(activeChat);
+        } catch (_) {}
     }
 
 async function uploadToCloud(file) {
@@ -4229,7 +4309,7 @@ async function uploadToCloud(file) {
             const blockedBar = document.getElementById('blocked-chat-bar');
             if (blockedBar) blockedBar.style.display = 'none';
             if (other) {
-                hName.textContent = other.name;
+                hName.innerHTML = escapeHtml(other.name) + verifiedBadgeHtml(other);
                 // если нас заблокировали — аватар пропадает (как WhatsApp)
                 if (hasBlockedMe(other.id)) {
                     hAv.innerHTML = getBlockedAvatarHtml();
@@ -4271,7 +4351,7 @@ async function uploadToCloud(file) {
             }
         } 
         else {
-            hName.textContent = activeChat.name;
+            hName.innerHTML = escapeHtml(activeChat.name) + verifiedBadgeHtml(activeChat);
             hAv.innerHTML = getAvatarHtml(activeChat.avatarType, activeChat.avatarValue);
             const mc = (activeChat.members || []).length;
             if (activeChat.type === 'channel') {
@@ -4370,13 +4450,14 @@ async function uploadToCloud(file) {
                 name = other ? other.name : 'Удаленный аккаунт';
                 avType = other ? other.avatarType : 'emoji';
                 avVal = other ? other.avatarValue : 'person_off';
+                badge = other ? verifiedBadgeHtml(other) : '';
             } else {
                 name = chat.name || (chat.type === 'channel' ? 'Канал' : 'Группа');
                 avType = chat.avatarType; avVal = chat.avatarValue;
                 // Канал — иконка рупора, у групп без смайлика
-                badge = chat.type === 'channel'
+                badge = verifiedBadgeHtml(chat) + (chat.type === 'channel'
                     ? ' <span class="material-symbols-outlined" style="font-size: 14px;">campaign</span>'
-                    : '';
+                    : '');
             }
             const lastMsg = chat.msgs && chat.msgs.length ? chat.msgs[chat.msgs.length - 1] : null;
             let preview = drafts[chat.id] ? `<span style="color:var(--red);">Черновик:</span> ${escapeHtml(drafts[chat.id])}` : 'Нет сообщений';
@@ -4910,26 +4991,34 @@ async function uploadToCloud(file) {
         if (db.users.length !== before) {
             rtdb.ref('/dg_app_data/users').set(db.users);
         }
-        const usersList = db.users.filter(u => u.id !== me.id);
+        const usersList = db.users.filter(u => isValidUser(u));
+        // себя тоже показываем (чтобы поставить галочку себе)
         if (usersList.length === 0) {
             list.innerHTML = '<div class="empty-state">Нет пользователей</div>';
             return;
         }
-        list.innerHTML = usersList.map(u => `
+        list.innerHTML = usersList.map(u => {
+            const isSelf = me && u.id === me.id;
+            const banBtn = isSelf ? '' : `<button class="auth-btn" style="flex:1; min-width: 45%; padding: 10px; font-size: 13px; margin: 0; background: ${u.isBanned ? 'var(--online)' : 'var(--red)'};" onclick="toggleBan('${u.id}')">${u.isBanned ? 'Разбанить' : 'Забанить'}</button>`;
+            const admBtn = isSelf ? '' : `<button class="auth-btn" style="flex:1; min-width: 45%; padding: 10px; font-size: 13px; margin: 0; background: var(--p);" onclick="toggleGlobalAdmin('${u.id}')">${u.isGlobalAdmin ? 'Снять админа' : 'Дать админа'}</button>`;
+            const delBtn = isSelf ? '' : `<button class="auth-btn" style="flex:1; min-width: 100%; padding: 10px; font-size: 13px; margin: 0; background: transparent; border: 1px solid var(--red); color: var(--red);" onclick="deleteUser('${u.id}')">Удалить</button>`;
+            return `
             <div class="account-item" style="flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 14px;">
                     <div class="account-avatar">${getAvatarHtml(u.avatarType, u.avatarValue)}</div>
                     <div class="account-info">
-                        <div class="account-name" style="${u.isBanned ? 'text-decoration: line-through; color: var(--mut);' : ''}">${escapeHtml(u.name)} ${isSuperAdmin(u) ? '👑' : ''}</div>
+                        <div class="account-name" style="${u.isBanned ? 'text-decoration: line-through; color: var(--mut);' : ''}">${escapeHtml(u.name)}${verifiedBadgeHtml(u)} ${isSuperAdmin(u) ? '👑' : ''}${isSelf ? ' (вы)' : ''}</div>
                         <div class="account-login">@${escapeHtml(u.login)}</div>
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="auth-btn" style="flex:1; min-width: 45%; padding: 10px; font-size: 13px; margin: 0; background: ${u.isBanned ? 'var(--online)' : 'var(--red)'};" onclick="toggleBan('${u.id}')">${u.isBanned ? 'Разбанить' : 'Забанить'}</button>
-                    <button class="auth-btn" style="flex:1; min-width: 45%; padding: 10px; font-size: 13px; margin: 0; background: var(--p);" onclick="toggleGlobalAdmin('${u.id}')">${u.isGlobalAdmin ? 'Снять админа' : 'Дать админа'}</button>
-                    <button class="auth-btn" style="flex:1; min-width: 100%; padding: 10px; font-size: 13px; margin: 0; background: transparent; border: 1px solid var(--red); color: var(--red);" onclick="deleteUser('${u.id}')">Удалить</button>
+                    ${banBtn}
+                    ${admBtn}
+                    <button class="auth-btn" style="flex:1; min-width: 45%; padding: 10px; font-size: 13px; margin: 0; background: ${u.verified ? '#1d9bf0' : 'var(--in)'}; color: ${u.verified ? '#fff' : 'var(--txt)'};" onclick="toggleUserVerified('${u.id}')">${u.verified ? '✓ Снять галочку' : 'Галочка'}</button>
+                    ${delBtn}
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     }
     
     function toggleBan(userId) { const user = db.users.find(u => u.id === userId); if (user) { user.isBanned = user.isBanned ? false : true; rtdb.ref('/dg_app_data/users').set(db.users); renderAdminPanel(); } }
@@ -5261,15 +5350,24 @@ async function uploadToCloud(file) {
             const contact = db.users.find(u => u.id === otherId);
             const isFriend = me.friends.includes(contact.id);
             const starHtml = isSuperAdmin(contact) ? ' <span style="color: #007aff; font-size: 18px;">★</span>' : '';
+            const vBadge = verifiedBadgeHtml(contact);
+            const isContactAI = isAIUser(contact);
             
             let addBtnHtml = '';
-            if (activeChat.u1 !== activeChat.u2) {
+            if (activeChat.u1 !== activeChat.u2 && !isContactAI) {
                 if (isFriend) {
                     addBtnHtml = `<div class="mp-action-row" onclick="removeContact('${contact.id}')" style="color: var(--red);"><span class="material-symbols-outlined">person_remove</span> Удалить из контактов</div>`;
                 } else {
                     addBtnHtml = `<div class="mp-action-row" onclick="addSpecificContact('${contact.id}')"><span class="material-symbols-outlined">person_add</span> Добавить в контакты</div>`;
                 }
             }
+            if (isSuperAdmin(me) && !isContactAI) {
+                addBtnHtml += `<div class="mp-action-row" onclick="toggleUserVerified('${contact.id}')"><span class="material-symbols-outlined" style="color:#1d9bf0;">verified</span> ${contact.verified ? 'Снять галочку' : 'Подтвердить аккаунт'}</div>`;
+            }
+
+            const callBtns = isContactAI ? '' : `
+                    <div class="mp-btn" onclick="initiateCall(false)"><span class="icon material-symbols-outlined">call</span>Звонок</div>
+                    <div class="mp-btn" onclick="initiateCall(true)"><span class="icon material-symbols-outlined">videocam</span>Видео</div>`;
 
             content.innerHTML = `
                 <div class="mp-head">
@@ -5279,13 +5377,12 @@ async function uploadToCloud(file) {
                 <div class="mp-av-wrap" onclick="openAvatarModalView('${contact.avatarType}', '${contact.avatarValue}')" style="cursor: pointer;">
                     ${getAvatarHtml(contact.avatarType, contact.avatarValue)}
                 </div>
-                <div class="mp-name">${escapeHtml(contact.name)}${starHtml}</div>
+                <div class="mp-name">${escapeHtml(contact.name)}${vBadge}${starHtml}</div>
                 <div class="mp-status">${getUserStatus(contact)}</div>
                 
                 <div class="mp-actions">
                     <div class="mp-btn" onclick="closeModernProfile()"><span class="icon material-symbols-outlined">chat</span>Чат</div>
-                    <div class="mp-btn" onclick="initiateCall(false)"><span class="icon material-symbols-outlined">call</span>Звонок</div>
-                    <div class="mp-btn" onclick="initiateCall(true)"><span class="icon material-symbols-outlined">videocam</span>Видео</div>
+                    ${callBtns}
                 </div>
 
                 <div class="mp-info-card">
@@ -5317,6 +5414,9 @@ async function uploadToCloud(file) {
             } 
             if (isCreator) { adminButtons += `<div class="mp-action-row" onclick="deleteChat()" style="color:var(--red);"><span class="material-symbols-outlined">delete</span> Удалить ${activeChat.type === 'channel' ? 'канал' : 'группу'}</div>`; } 
             else { adminButtons += `<div class="mp-action-row" onclick="leaveChat()" style="color:var(--red);"><span class="material-symbols-outlined">logout</span> ${activeChat.type === 'channel' ? 'Отписаться' : 'Покинуть группу'}</div>`; }
+            if (isSuperAdmin(me)) {
+                adminButtons += `<div class="mp-action-row" onclick="toggleChatVerified()"><span class="material-symbols-outlined" style="color:#1d9bf0;">verified</span> ${activeChat.verified ? 'Снять галочку' : 'Подтвердить канал/группу'}</div>`;
+            }
 
             // Список участников: в КАНАЛЕ — только админам; в ГРУППЕ — всем
             let membersHtml = '';
@@ -5367,7 +5467,7 @@ async function uploadToCloud(file) {
                 <div class="mp-av-wrap" onclick="openAvatarModalView('${activeChat.avatarType}', '${activeChat.avatarValue}')" style="cursor: pointer;">
                     ${getAvatarHtml(activeChat.avatarType, activeChat.avatarValue)}
                 </div>
-                <div class="mp-name">${escapeHtml(activeChat.name)}</div>
+                <div class="mp-name">${escapeHtml(activeChat.name)}${verifiedBadgeHtml(activeChat)}</div>
                 <div class="mp-status">${activeChat.type === 'channel' ? ('📢 Канал' + (activeChat.username ? ' · @' + escapeHtml(activeChat.username) : '')) : 'Группа'} · ${(activeChat.members || []).length} ${activeChat.type === 'channel' ? 'подп.' : 'уч.'}</div>
 
                 <div class="mp-info-card">
