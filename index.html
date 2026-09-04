@@ -2604,6 +2604,15 @@
             }
         }
     }
+
+    function isAIUser(u) {
+        if (!u) return false;
+        if (typeof u === 'string') {
+            return u === 'ai_iskra' || u === 'ai';
+        }
+        return !!(u.isAI || u.login === 'ai' || u.id === 'ai_iskra');
+    }
+
 async function uploadToCloud(file) {
         const loader = document.getElementById('loader'); loader.style.display = 'flex'; loader.style.opacity = '1';
         const loaderText = document.querySelector('#loader div:nth-child(2)'); if(loaderText) loaderText.textContent = 'Отправка...';
@@ -2790,6 +2799,11 @@ async function uploadToCloud(file) {
     }
 
     async function initiateCall(isVideo) {
+        if (activeChat && activeChat.type === 'direct') {
+            const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+            const ou = db.users.find(u => u && u.id === oid);
+            if (isAIUser(ou) || isAIUser(oid)) return showToast('Искра не принимает звонки');
+        }
         if (!activeChat || activeChat.type !== 'direct') return;
         unlockAudioContext();
         const targetUserId = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
@@ -3332,14 +3346,27 @@ async function uploadToCloud(file) {
                 const userCred = await firebase.auth().signInWithEmailAndPassword(loginLower, passwordVal);
                 
                 let user = db.users.find(u => u.email === loginLower || u.firebaseUid === userCred.user.uid);
-                // не блокируем вход — подтверждение почты по желанию
+
+                // Требуем подтверждение почты по ссылке Firebase
+                if (!userCred.user.emailVerified) {
+                    hideLoader();
+                    try {
+                        await userCred.user.sendEmailVerification();
+                        showToast('Почта не подтверждена. Мы снова отправили ссылку — откройте письмо и нажмите на неё, затем войдите.');
+                    } catch (ve) {
+                        showToast('Почта не подтверждена. Проверьте письмо от Firebase и перейдите по ссылке.');
+                    }
+                    try { await firebase.auth().signOut(); } catch (_) {}
+                    return;
+                }
+
                 if (user) {
-                    user.emailOk = !!(userCred.user.emailVerified);
+                    user.emailOk = true;
                     try {
                         const uIdx = db.users.findIndex(u => u.id === user.id);
                         if (uIdx > -1) {
-                            db.users[uIdx].emailOk = user.emailOk;
-                            rtdb.ref('/dg_app_data/users/' + uIdx + '/emailOk').set(user.emailOk);
+                            db.users[uIdx].emailOk = true;
+                            rtdb.ref('/dg_app_data/users/' + uIdx + '/emailOk').set(true);
                         }
                     } catch (_) {}
                 }
@@ -3362,7 +3389,8 @@ async function uploadToCloud(file) {
                         secretWord: hashString('firebase_auth'),
                         lastSeen: Date.now(),
                         isBanned: false,
-                        firebaseUid: userCred.user.uid
+                        firebaseUid: userCred.user.uid,
+                        emailOk: true
                     };
                     db.users.push(user);
                     await rtdb.ref('/dg_app_data/users').set(db.users);
@@ -3441,10 +3469,21 @@ async function uploadToCloud(file) {
                         }
                     }
                 }
-                try { await fUser.sendEmailVerification(); } catch (ve) { console.warn(ve); }
+                // Подтверждение через ссылку Firebase (не код)
+                try {
+                    await fUser.sendEmailVerification();
+                } catch (ve) { console.warn('sendEmailVerification', ve); }
+                try { await firebase.auth().signOut(); } catch (_) {}
                 document.getElementById('loader').style.opacity = '0'; setTimeout(()=>document.getElementById('loader').style.display='none', 300);
-                showToast('Аккаунт создан');
-                proceedWithLogin(user);
+                showToast('Аккаунт создан! Откройте письмо от Firebase и нажмите ссылку подтверждения, затем войдите.');
+                try {
+                    switchAuthTab('login');
+                    const loginInput = document.getElementById('loginUsername');
+                    if (loginInput) loginInput.value = loginLower;
+                    document.getElementById('regPassword').value = '';
+                    document.getElementById('regConfirm').value = '';
+                } catch (_) {}
+                // В аккаунт НЕ входим, пока почта не подтверждена по ссылке
             } catch (error) { document.getElementById('loader').style.opacity = '0'; setTimeout(()=>document.getElementById('loader').style.display='none', 300); return showToast('Ошибка: ' + error.message); }
         } else {
             me = { id: 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), login: loginLower, name: loginVal, avatarType: 'emoji', avatarValue: builtInAvatars[Math.floor(Math.random() * builtInAvatars.length)], friends: [], friendRequests: [], password: hashString(passwordVal), secretWord: hashString(secretVal), lastSeen: Date.now(), isBanned: false };
@@ -4158,9 +4197,25 @@ async function uploadToCloud(file) {
                 if (blockedBar) blockedBar.style.display = 'flex';
                 callBtnAudio.style.display = 'none';
                 callBtnVideo.style.display = 'none';
+            } else if (other && isAIUser(other)) {
+                callBtnAudio.style.display = 'none';
+                callBtnVideo.style.display = 'none';
+                // Только текст: скрываем скрепку, голос, видеокружок
+                const _attachBtn = document.querySelector('#chat-input-area .input-row > .icon-btn');
+                const _voiceBtn = document.getElementById('btn-voice');
+                const _circleBtn = document.getElementById('btn-circle');
+                if (_attachBtn) _attachBtn.style.display = 'none';
+                if (_voiceBtn) _voiceBtn.style.display = 'none';
+                if (_circleBtn) _circleBtn.style.display = 'none';
             } else {
                 callBtnAudio.style.display = 'flex';
                 callBtnVideo.style.display = 'flex';
+                const _attachBtn2 = document.querySelector('#chat-input-area .input-row > .icon-btn');
+                const _voiceBtn2 = document.getElementById('btn-voice');
+                const _circleBtn2 = document.getElementById('btn-circle');
+                if (_attachBtn2) _attachBtn2.style.display = '';
+                if (_voiceBtn2) _voiceBtn2.style.display = '';
+                if (_circleBtn2) _circleBtn2.style.display = '';
             }
         } 
         else {
@@ -4625,7 +4680,12 @@ async function uploadToCloud(file) {
     }
 
     async function handleAttachment(e) {
-        if (!activeChat) return; const file = e.target.files[0]; if (!file) return; e.target.value = '';
+        if (!activeChat) return;
+        if (activeChat.type === 'direct') {
+            const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+            const ou = db.users.find(u => u && u.id === oid);
+            if (isAIUser(ou) || isAIUser(oid)) return showToast('Искре можно отправлять только текст');
+        } const file = e.target.files[0]; if (!file) return; e.target.value = '';
         const type = getFileType(file); const url = await uploadToCloud(file);
         if (url) {
             const chatIndex = ensureChatInDb();
@@ -4642,7 +4702,12 @@ async function uploadToCloud(file) {
     }
 
     function toggleVoice() {
-        if (!activeChat) return; const btn = document.getElementById('btn-voice');
+        if (!activeChat) return;
+        if (activeChat.type === 'direct') {
+            const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+            const ou = db.users.find(u => u && u.id === oid);
+            if (isAIUser(ou) || isAIUser(oid)) return showToast('Искре можно отправлять только текст');
+        } const btn = document.getElementById('btn-voice');
         if (isRecordingVoice) { mediaRecorder.stop(); isRecordingVoice = false; btn.classList.remove('recording-pulse'); } 
         else {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -4657,6 +4722,11 @@ async function uploadToCloud(file) {
     }
 
     function toggleVideoCircle() {
+        if (activeChat && activeChat.type === 'direct') {
+            const oid = activeChat.u1 === me.id ? activeChat.u2 : activeChat.u1;
+            const ou = db.users.find(u => u && u.id === oid);
+            if (isAIUser(ou) || isAIUser(oid)) return showToast('Искре можно отправлять только текст');
+        }
         if (!activeChat) return; const btn = document.getElementById('btn-circle'); const previewContainer = document.getElementById('video-circle-preview-container'); const previewVideo = document.getElementById('video-circle-preview');
         if (isRecordingVideo) { mediaRecorder.stop(); isRecordingVideo = false; btn.classList.remove('recording-pulse'); previewContainer.style.display = 'none'; if (previewVideo.srcObject) { previewVideo.srcObject.getTracks().forEach(t => t.stop()); } previewVideo.srcObject = null; } 
         else {
